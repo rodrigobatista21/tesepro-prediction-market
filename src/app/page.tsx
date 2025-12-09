@@ -207,7 +207,7 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 items-stretch">
             {featuredMarkets.map((market) => (
               <MarketCard
                 key={market.id}

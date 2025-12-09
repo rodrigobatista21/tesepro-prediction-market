@@ -74,14 +74,14 @@ export function MarketCard({ market, className, variant = 'default', sparklineDa
     return (
       <Link href={`/mercado/${market.id}`}>
         <Card className={cn(
-          'overflow-hidden transition-all duration-300 group cursor-pointer',
+          'overflow-hidden transition-all duration-300 group cursor-pointer h-full',
           'hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5',
           'border-border/50 bg-card/50 backdrop-blur-sm',
           className
         )}>
-          <div className="flex flex-col md:flex-row">
-            {/* Image Section */}
-            <div className="relative w-full md:w-72 h-48 md:h-auto bg-muted flex-shrink-0">
+          <div className="flex flex-col h-full">
+            {/* Image Section - Fixed height */}
+            <div className="relative w-full h-40 bg-muted flex-shrink-0">
               {market.image_url ? (
                 <Image
                   src={market.image_url}
@@ -92,11 +92,10 @@ export function MarketCard({ market, className, variant = 'default', sparklineDa
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/20 to-emerald-500/5">
-                  <TrendingUp className="w-16 h-16 text-muted-foreground/20" />
+                  <TrendingUp className="w-12 h-12 text-muted-foreground/20" />
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-card/80 hidden md:block" />
-              <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent md:hidden" />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
 
               {isTrending && (
                 <Badge className="absolute top-3 left-3 bg-amber-500/90 text-white border-0 gap-1">
@@ -104,44 +103,52 @@ export function MarketCard({ market, className, variant = 'default', sparklineDa
                   Popular
                 </Badge>
               )}
+
+              {/* Time badge */}
+              <Badge
+                variant="secondary"
+                className="absolute top-3 right-3 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm border-0"
+              >
+                <Clock className="w-3 h-3 mr-1" />
+                {formatRelativeDate(market.ends_at)}
+              </Badge>
             </div>
 
-            {/* Content Section */}
-            <CardContent className="flex-1 p-6 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CategoryIcon className={cn('w-4 h-4', categoryConfig.color)} />
-                    <span className={cn('text-xs font-medium', categoryConfig.color)}>
-                      {categoryConfig.label}
-                    </span>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatRelativeDate(market.ends_at)}
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-bold group-hover:text-emerald-500 transition-colors">
-                    {market.title}
-                  </h3>
+            {/* Content Section - Flex grow to fill */}
+            <CardContent className="flex-1 p-5 flex flex-col justify-between">
+              <div className="space-y-3">
+                {/* Category */}
+                <div className="flex items-center gap-2">
+                  <CategoryIcon className={cn('w-4 h-4', categoryConfig.color)} />
+                  <span className={cn('text-xs font-medium', categoryConfig.color)}>
+                    {categoryConfig.label}
+                  </span>
                 </div>
-                <Sparkline data={sparklineData} width={100} height={40} />
+
+                {/* Title - Fixed height with line clamp */}
+                <h3 className="text-lg font-bold group-hover:text-emerald-500 transition-colors line-clamp-2 min-h-[56px]">
+                  {market.title}
+                </h3>
+
+                {/* Sparkline row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-emerald-500">
+                      {Math.round(market.odds_yes)}%
+                    </span>
+                    <span className="text-sm text-muted-foreground">SIM</span>
+                  </div>
+                  <Sparkline data={sparklineData} width={80} height={32} />
+                </div>
               </div>
 
-              {/* Odds and Stats Row */}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-4">
-                  <OddsPill outcome="yes" odds={market.odds_yes} />
-                  <OddsPill outcome="no" odds={market.odds_no} />
+              {/* Footer stats */}
+              <div className="flex items-center justify-between pt-4 mt-4 border-t border-border/50">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Activity className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">{formatBRL(market.total_liquidity)}</span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-4 h-4" />
-                    <span className="font-medium text-foreground">{formatBRL(market.total_liquidity)}</span>
-                    <span className="text-xs">vol.</span>
-                  </div>
-                  <Change24h value={change24h} />
-                </div>
+                <Change24h value={change24h} />
               </div>
             </CardContent>
           </div>
