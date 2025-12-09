@@ -1,0 +1,288 @@
+// Tipos do banco de dados Supabase
+// Gerar automaticamente com: npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/lib/types/database.types.ts
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type LedgerCategory = 'DEPOSIT' | 'WITHDRAW' | 'TRADE' | 'PAYOUT'
+
+export type MarketCategory =
+  | 'politica'
+  | 'economia'
+  | 'esportes'
+  | 'entretenimento'
+  | 'tecnologia'
+  | 'internacional'
+  | 'outros'
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string
+          full_name: string | null
+          cpf: string | null
+          avatar_url: string | null
+          is_admin: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          full_name?: string | null
+          cpf?: string | null
+          avatar_url?: string | null
+          is_admin?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string | null
+          cpf?: string | null
+          avatar_url?: string | null
+          is_admin?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      markets: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          image_url: string | null
+          category: MarketCategory
+          ends_at: string
+          outcome: boolean | null
+          pool_yes: number
+          pool_no: number
+          created_by: string | null
+          created_at: string
+          resolved_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          image_url?: string | null
+          category?: MarketCategory
+          ends_at: string
+          outcome?: boolean | null
+          pool_yes?: number
+          pool_no?: number
+          created_by?: string | null
+          created_at?: string
+          resolved_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          image_url?: string | null
+          category?: MarketCategory
+          ends_at?: string
+          outcome?: boolean | null
+          pool_yes?: number
+          pool_no?: number
+          created_by?: string | null
+          created_at?: string
+          resolved_at?: string | null
+        }
+      }
+      ledger_entries: {
+        Row: {
+          id: string
+          user_id: string
+          amount: number
+          category: LedgerCategory
+          reference_id: string | null
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          amount: number
+          category: LedgerCategory
+          reference_id?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Update: never // Ledger é imutável
+      }
+      market_positions: {
+        Row: {
+          id: string
+          user_id: string
+          market_id: string
+          shares_yes: number
+          shares_no: number
+          avg_cost_yes: number
+          avg_cost_no: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          market_id: string
+          shares_yes?: number
+          shares_no?: number
+          avg_cost_yes?: number
+          avg_cost_no?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          market_id?: string
+          shares_yes?: number
+          shares_no?: number
+          avg_cost_yes?: number
+          avg_cost_no?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      audit_logs: {
+        Row: {
+          id: string
+          user_id: string | null
+          action: string
+          table_name: string | null
+          record_id: string | null
+          old_data: Json | null
+          new_data: Json | null
+          ip_address: string | null
+          user_agent: string | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          action: string
+          table_name?: string | null
+          record_id?: string | null
+          old_data?: Json | null
+          new_data?: Json | null
+          ip_address?: string | null
+          user_agent?: string | null
+          metadata?: Json
+          created_at?: string
+        }
+        Update: never // Audit logs são imutáveis
+      }
+    }
+    Functions: {
+      rpc_deposit_mock: {
+        Args: {
+          p_user_id: string
+          p_amount: number
+        }
+        Returns: Json
+      }
+      rpc_buy_shares: {
+        Args: {
+          p_market_id: string
+          p_outcome: boolean
+          p_amount: number
+        }
+        Returns: Json
+      }
+      rpc_sell_shares: {
+        Args: {
+          p_market_id: string
+          p_outcome: boolean
+          p_shares: number
+        }
+        Returns: Json
+      }
+      rpc_create_market: {
+        Args: {
+          p_title: string
+          p_description: string
+          p_category?: MarketCategory
+          p_ends_at: string
+          p_initial_liquidity?: number
+          p_image_url?: string | null
+        }
+        Returns: Json
+      }
+      rpc_resolve_market: {
+        Args: {
+          p_market_id: string
+          p_winning_outcome: boolean
+        }
+        Returns: Json
+      }
+      get_user_balance: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: number
+      }
+      get_market_odds: {
+        Args: {
+          p_market_id: string
+        }
+        Returns: {
+          price_yes: number
+          price_no: number
+          total_liquidity: number
+        }[]
+      }
+    }
+  }
+}
+
+// Helper types
+export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+export type Inserts<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
+export type Updates<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+
+// Tipos específicos
+export type Profile = Tables<'profiles'>
+export type Market = Tables<'markets'>
+export type LedgerEntry = Tables<'ledger_entries'>
+export type MarketPosition = Tables<'market_positions'>
+export type AuditLog = Tables<'audit_logs'>
+
+// Tipos de resposta das RPCs
+export interface BuySharesResponse {
+  success: boolean
+  shares: number
+  outcome: boolean
+  amount_spent: number
+  new_balance: number
+  price_before: number
+  price_after: number
+}
+
+export interface SellSharesResponse {
+  success: boolean
+  shares_sold: number
+  amount_received: number
+  new_balance: number
+}
+
+export interface DepositResponse {
+  success: boolean
+  amount: number
+  new_balance: number
+}
+
+// Tipo de mercado com odds calculadas
+export interface MarketWithOdds extends Market {
+  odds_yes: number
+  odds_no: number
+  total_liquidity: number
+}

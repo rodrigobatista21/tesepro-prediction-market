@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Prever - Prediction Market Brasileiro
 
-## Getting Started
+> Aposte em eventos de política, economia e esportes. Sem crypto, sem complicação.
 
-First, run the development server:
+## Quick Start
 
 ```bash
+# 1. Instalar dependências
+npm install
+
+# 2. Configurar variáveis de ambiente
+cp .env.local.example .env.local
+# Edite .env.local com suas credenciais do Supabase
+
+# 3. Rodar em desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Frontend:** Next.js 15, React 19, TypeScript
+- **UI:** Tailwind CSS, shadcn/ui, Lucide React
+- **Backend:** Supabase (PostgreSQL, Auth, Realtime)
+- **Market Maker:** CPMM (Constant Product Market Maker)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estrutura
 
-## Learn More
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Login, Register
+│   ├── (dashboard)/        # Mercado, Carteira
+│   └── layout.tsx
+├── components/
+│   ├── markets/            # MarketCard, OddsBar
+│   ├── trading/            # TradePanel
+│   ├── wallet/             # BalanceDisplay, DepositModal
+│   └── ui/                 # shadcn/ui
+├── lib/
+│   ├── hooks/              # useAuth, useBalance, useMarkets, useTrade
+│   ├── supabase/           # Client, Server, Middleware
+│   └── utils/              # format.ts, cpmm.ts
+supabase/
+└── migrations/             # SQL migrations
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Configuração do Supabase
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Crie um projeto em [supabase.com](https://supabase.com)
+2. Execute as migrations em ordem (001 a 008)
+3. Configure Auth providers (Google, Email)
+4. Copie as credenciais para `.env.local`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Regras de Negócio
 
-## Deploy on Vercel
+- **CPMM:** Preço = Pool oposto / Total pools
+- **Ledger:** Saldo = SUM(amount) - nunca coluna balance
+- **Atomicidade:** Todas transações via Stored Procedures
+- **RLS:** Row Level Security em todas as tabelas
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev      # Desenvolvimento
+npm run build    # Build produção
+npm run lint     # ESLint
+```
+
+## Licença
+
+Proprietário - Todos os direitos reservados
