@@ -319,22 +319,6 @@ export interface Database {
         }
         Returns: Json
       }
-      rpc_buy_shares: {
-        Args: {
-          p_market_id: string
-          p_outcome: boolean
-          p_amount: number
-        }
-        Returns: Json
-      }
-      rpc_sell_shares: {
-        Args: {
-          p_market_id: string
-          p_outcome: boolean
-          p_shares: number
-        }
-        Returns: Json
-      }
       rpc_create_market: {
         Args: {
           p_title: string
@@ -464,27 +448,22 @@ export type MarketPosition = Tables<'market_positions'>
 export type AuditLog = Tables<'audit_logs'>
 
 // Tipos de resposta das RPCs
-export interface BuySharesResponse {
-  success: boolean
-  shares: number
-  outcome: boolean
-  amount_spent: number
-  new_balance: number
-  price_before: number
-  price_after: number
-}
-
-export interface SellSharesResponse {
-  success: boolean
-  shares_sold: number
-  amount_received: number
-  new_balance: number
-}
-
 export interface DepositResponse {
   success: boolean
   amount: number
   new_balance: number
+}
+
+// Order Book response types
+export interface PlaceOrderResponse {
+  success: boolean
+  error?: string
+  order_id?: string
+  filled_quantity?: number
+  remaining_quantity?: number
+  avg_price?: number
+  total_cost?: number
+  status?: 'open' | 'partial' | 'filled' | 'cancelled'
 }
 
 // Tipo de mercado com odds calculadas

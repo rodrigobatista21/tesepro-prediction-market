@@ -99,24 +99,32 @@ export function createMockSupabaseClient(overrides: {
       // Default RPC responses
       const defaultResponses: Record<string, unknown> = {
         get_user_balance: balance,
-        rpc_buy_shares: {
-          success: true,
-          shares_bought: 90.909,
-          new_balance: 900,
-          new_pool_yes: 1100,
-          new_pool_no: 909.09,
-        },
-        rpc_sell_shares: {
-          success: true,
-          amount_received: 47.62,
-          new_balance: 1047.62,
-          new_pool_yes: 952.38,
-          new_pool_no: 1050,
-        },
         rpc_deposit_mock: {
           success: true,
+          amount: params?.p_amount as number || 100,
           new_balance: balance + (params?.p_amount as number || 100),
         },
+        place_order: {
+          success: true,
+          order_id: 'mock-order-123',
+          filled_quantity: params?.p_quantity as number || 10,
+          remaining_quantity: 0,
+          avg_price: 0.5,
+          total_cost: (params?.p_quantity as number || 10) * 0.5,
+          status: 'filled',
+        },
+        cancel_order: {
+          success: true,
+        },
+        get_order_book_detailed: [],
+        get_best_prices: [{
+          best_bid: 0.48,
+          best_ask: 0.52,
+          bid_quantity: 100,
+          ask_quantity: 100,
+        }],
+        get_user_open_orders: [],
+        get_user_positions: [],
       }
 
       const response = rpcResponses[fnName] ?? defaultResponses[fnName]
