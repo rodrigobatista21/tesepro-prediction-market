@@ -18,12 +18,14 @@ import {
   ArrowRight,
   ChevronRight,
   Target,
-  LineChart
+  LineChart,
+  Zap
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { MarketCard } from '@/components/markets/MarketCard'
 import { MarketSearch } from '@/components/markets/MarketSearch'
+import { HeroMarket } from '@/components/markets/HeroMarket'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMarkets, useMultipleOddsHistory, getSparklineData, calculate24hChange } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
@@ -86,21 +88,35 @@ export default function HomePage() {
   const activeMarkets = markets.filter(m => m.outcome === null).length
   const totalTraders = Math.floor(totalVolume / 50) // Estimate
 
-  // Get featured markets (highest volume)
-  const featuredMarkets = useMemo(() => {
-    return [...markets]
+  // Get hero market (highest volume single market)
+  const heroMarket = useMemo(() => {
+    const sorted = [...markets]
       .filter(m => m.outcome === null)
       .sort((a, b) => b.total_liquidity - a.total_liquidity)
-      .slice(0, 2)
+    return sorted[0] || null
   }, [markets])
 
-  // Get trending markets
-  const trendingMarkets = useMemo(() => {
+  // Get featured markets (2nd and 3rd highest volume, excluding hero)
+  const featuredMarkets = useMemo(() => {
     return [...markets]
-      .filter(m => m.outcome === null && m.total_liquidity > 1000)
+      .filter(m => m.outcome === null && m.id !== heroMarket?.id)
+      .sort((a, b) => b.total_liquidity - a.total_liquidity)
+      .slice(0, 2)
+  }, [markets, heroMarket])
+
+  // Get trending markets (excluding hero and featured)
+  const trendingMarkets = useMemo(() => {
+    const excludeIds = new Set([heroMarket?.id, ...featuredMarkets.map(m => m.id)])
+    return [...markets]
+      .filter(m => m.outcome === null && !excludeIds.has(m.id) && m.total_liquidity > 500)
       .sort((a, b) => b.total_liquidity - a.total_liquidity)
       .slice(0, 4)
-  }, [markets])
+  }, [markets, heroMarket, featuredMarkets])
+
+  // Simulated recent trades count (would come from real-time data in production)
+  const recentTradesCount = useMemo(() => {
+    return Math.floor(Math.random() * 20) + 5
+  }, [])
 
   // Filter markets based on category, special filters, and search query
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -140,49 +156,77 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <section className="py-8 md:py-12">
-        <div className="max-w-3xl">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4">
-            Dados, nao apostas.{' '}
-            <span className="text-emerald-500">Teses.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-2xl">
-            Plataforma profissional de analise preditiva para politica, economia e mercados.
-            Negocie teses com precisao institucional.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 gap-2" asChild>
-              <Link href="#todas-teses">
-                Explorar Teses
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="#como-funciona">
-                Como funciona
-              </Link>
-            </Button>
+      {/* Hero Market Section */}
+      {!isLoading && heroMarket ? (
+        <section className="pt-4">
+          <HeroMarket
+            market={heroMarket}
+            sparklineData={getMarketSparkline(heroMarket.id)}
+            change24h={getMarketChange24h(heroMarket.id)}
+            recentTrades={recentTradesCount}
+          />
+        </section>
+      ) : isLoading ? (
+        <section className="pt-4">
+          <HeroMarketSkeleton />
+        </section>
+      ) : (
+        /* Fallback Hero if no markets */
+        <section className="py-8 md:py-12">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4">
+              Dados, nao apostas.{' '}
+              <span className="text-emerald-500">Teses.</span>
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-2xl">
+              Plataforma profissional de analise preditiva para politica, economia e mercados.
+              Negocie teses com precisao institucional.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 gap-2" asChild>
+                <Link href="#todas-teses">
+                  Explorar Teses
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="#como-funciona">
+                  Como funciona
+                </Link>
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Stats Bar - Simplified monochrome palette */}
+      {/* Stats Bar - With Live Indicators */}
       <div className="flex flex-wrap items-center justify-between gap-4 py-4 border-y border-border/50">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-sm text-muted-foreground">Mercado ativo</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            </div>
+            <span className="text-sm font-medium text-emerald-500">Ao Vivo</span>
+          </div>
+          {recentTradesCount > 0 && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span className="font-medium text-foreground">{recentTradesCount}</span>
+              <span className="hidden sm:inline">trades/hora</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-6 text-sm">
           <StatItem
             icon={<Activity className="w-4 h-4 text-muted-foreground" />}
-            label="Volume Total"
+            label="Volume"
             value={formatBRL(totalVolume)}
           />
           <div className="w-px h-4 bg-border" />
           <StatItem
             icon={<BarChart3 className="w-4 h-4 text-muted-foreground" />}
-            label="Teses Ativas"
+            label="Teses"
             value={activeMarkets.toString()}
           />
           <div className="w-px h-4 bg-border hidden sm:block" />
@@ -478,5 +522,38 @@ function MarketCardSkeleton() {
         </div>
       </div>
     </Card>
+  )
+}
+
+function HeroMarketSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8">
+      <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
+        {/* Left */}
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-6 w-3/4" />
+          <div className="flex gap-4">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+        </div>
+        {/* Right */}
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Skeleton className="h-16 w-32" />
+          </div>
+          <Skeleton className="h-4 w-full rounded-full" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
