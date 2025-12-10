@@ -113,9 +113,11 @@ export default function HomePage() {
       .slice(0, 4)
   }, [markets, heroMarket, featuredMarkets])
 
-  // Simulated recent trades count (would come from real-time data in production)
-  const recentTradesCount = useMemo(() => {
-    return Math.floor(Math.random() * 20) + 5
+  // Simulated recent trades count - using state to avoid hydration mismatch
+  const [recentTradesCount, setRecentTradesCount] = useState(0)
+  useEffect(() => {
+    // Set random count only on client to avoid SSR/client mismatch
+    setRecentTradesCount(Math.floor(Math.random() * 20) + 5)
   }, [])
 
   // Filter markets based on category, special filters, and search query
@@ -295,47 +297,50 @@ export default function HomePage() {
 
       {/* Main Markets Section */}
       <section className="space-y-6" id="todas-teses">
-        {/* Search bar */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <MarketSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            className="flex-1 max-w-lg"
-            placeholder="Buscar teses..."
-          />
+        {/* Sticky filter bar on mobile */}
+        <div className="sticky top-0 z-40 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-sm border-b border-border/50 sm:relative sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+            <MarketSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+              className="flex-1 max-w-lg"
+              placeholder="Buscar teses..."
+            />
 
-          {/* Special filters */}
-          <div className="flex items-center gap-2">
-            {SPECIAL_FILTERS.map((filter) => {
-              const Icon = filter.icon
-              const isActive = specialFilter === filter.id
+            {/* Special filters */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              {SPECIAL_FILTERS.map((filter) => {
+                const Icon = filter.icon
+                const isActive = specialFilter === filter.id
 
-              return (
-                <Button
-                  key={filter.id}
-                  variant={isActive ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSpecialFilter(isActive ? null : filter.id)}
-                  className={cn(
-                    'gap-1.5 whitespace-nowrap',
-                    isActive && 'bg-emerald-500 hover:bg-emerald-600'
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {filter.label}
-                </Button>
-              )
-            })}
+                return (
+                  <Button
+                    key={filter.id}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpecialFilter(isActive ? null : filter.id)}
+                    className={cn(
+                      'gap-1.5 whitespace-nowrap flex-shrink-0',
+                      isActive && 'bg-emerald-500 hover:bg-emerald-600'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="hidden xs:inline">{filter.label}</span>
+                    <span className="xs:hidden">{filter.id === 'trending' ? 'Hot' : 'Fim'}</span>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         </div>
 
         {/* Header with filters */}
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div>
-              <h2 className="text-2xl font-bold">Todas as Teses</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {filteredMarkets.length} {filteredMarkets.length === 1 ? 'tese encontrada' : 'teses encontradas'}
+              <h2 className="text-xl sm:text-2xl font-bold">Todas as Teses</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+                {filteredMarkets.length} {filteredMarkets.length === 1 ? 'tese' : 'teses'}
                 {searchQuery && (
                   <span className="ml-1">
                     para &quot;{searchQuery}&quot;
@@ -345,8 +350,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Theme category filters */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {/* Theme category filters - horizontal scroll on mobile */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             {THEME_CATEGORIES.map((category) => {
               const Icon = category.icon
               const isActive = activeCategory === category.id
@@ -361,15 +366,16 @@ export default function HomePage() {
                   size="sm"
                   onClick={() => setActiveCategory(category.id)}
                   className={cn(
-                    'gap-1.5 whitespace-nowrap',
+                    'gap-1 sm:gap-1.5 whitespace-nowrap flex-shrink-0 h-8 sm:h-9 text-xs sm:text-sm px-2.5 sm:px-3',
                     isActive && 'bg-emerald-500 hover:bg-emerald-600'
                   )}
                 >
-                  <Icon className="w-4 h-4" />
-                  {category.label}
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">{category.label}</span>
+                  <span className="sm:hidden">{category.label.slice(0, 4)}</span>
                   {count > 0 && (
                     <span className={cn(
-                      'text-xs',
+                      'text-[10px] sm:text-xs',
                       isActive ? 'text-white/70' : 'text-muted-foreground'
                     )}>
                       ({count})
@@ -381,24 +387,24 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Market grid */}
+        {/* Market grid - responsive with mobile-optimized spacing */}
         {isLoading ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <MarketCardSkeleton key={i} />
             ))}
           </div>
         ) : error ? (
           <Card className="border-destructive/50">
-            <CardContent className="py-12 text-center">
-              <p className="text-destructive">{error}</p>
+            <CardContent className="py-8 sm:py-12 text-center">
+              <p className="text-destructive text-sm sm:text-base">{error}</p>
             </CardContent>
           </Card>
         ) : filteredMarkets.length === 0 ? (
           <Card className="border-border/50">
-            <CardContent className="py-12 text-center">
-              <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-2">Nenhuma tese encontrada</p>
+            <CardContent className="py-8 sm:py-12 text-center">
+              <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+              <p className="text-muted-foreground mb-2 text-sm sm:text-base">Nenhuma tese encontrada</p>
               {searchQuery && (
                 <Button
                   variant="outline"
@@ -411,7 +417,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredMarkets.map((market) => (
               <MarketCard
                 key={market.id}

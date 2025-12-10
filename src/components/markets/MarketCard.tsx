@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Clock, TrendingUp, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { Clock, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Droplets } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Sparkline } from '@/components/ui/sparkline'
@@ -18,6 +18,7 @@ interface MarketCardProps {
   variant?: 'default' | 'compact' | 'featured'
   sparklineData?: number[]
   change24h?: number
+  liquidityScore?: number // 0-100, optional liquidity indicator
 }
 
 function checkIsEnding(endsAt: string): boolean {
@@ -26,7 +27,7 @@ function checkIsEnding(endsAt: string): boolean {
   return endsAtTime - Date.now() < oneDayMs
 }
 
-export function MarketCard({ market, className, variant = 'default', sparklineData: propSparklineData, change24h: propChange24h }: MarketCardProps) {
+export function MarketCard({ market, className, variant = 'default', sparklineData: propSparklineData, change24h: propChange24h, liquidityScore }: MarketCardProps) {
   const isEnding = checkIsEnding(market.ends_at)
 
   // Use prop data if available, otherwise generate placeholder
@@ -209,13 +210,18 @@ export function MarketCard({ market, className, variant = 'default', sparklineDa
             <Sparkline data={sparklineData} width={72} height={28} />
           </div>
 
-          {/* Footer stats - Minimal */}
+          {/* Footer stats - With liquidity indicator */}
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t border-border/50">
-            <div className="flex items-center gap-1">
-              <Activity className="w-3 h-3" />
-              <span>{formatBRL(market.total_liquidity)}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                <span>{formatBRL(market.total_liquidity)}</span>
+              </div>
+              {liquidityScore !== undefined && (
+                <LiquidityBadge score={liquidityScore} />
+              )}
             </div>
-            <span className="text-emerald-500 font-medium">Negociar →</span>
+            <span className="text-emerald-500 font-medium group-hover:translate-x-0.5 transition-transform">Negociar →</span>
           </div>
         </CardContent>
       </Card>
@@ -244,6 +250,31 @@ function Change24h({ value, size = 'md' }: Change24hProps) {
       <span className="font-medium">
         {isPositive ? '+' : ''}{value.toFixed(1)}%
       </span>
+    </div>
+  )
+}
+
+interface LiquidityBadgeProps {
+  score: number // 0-100
+}
+
+function LiquidityBadge({ score }: LiquidityBadgeProps) {
+  const getColor = () => {
+    if (score >= 70) return 'text-emerald-500'
+    if (score >= 50) return 'text-amber-500'
+    return 'text-rose-500'
+  }
+
+  const getLabel = () => {
+    if (score >= 70) return 'Alta'
+    if (score >= 50) return 'Media'
+    return 'Baixa'
+  }
+
+  return (
+    <div className={cn('flex items-center gap-1', getColor())}>
+      <Droplets className="w-3 h-3" />
+      <span className="text-[10px] font-medium">{getLabel()}</span>
     </div>
   )
 }
