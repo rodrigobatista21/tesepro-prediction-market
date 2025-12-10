@@ -66,16 +66,18 @@ export function useMarketTrades(marketId: string): UseMarketTradesReturn {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const transformedTrades: MarketTrade[] = (data || []).map((entry: any) => {
         // Parse description to extract outcome and shares
-        // Format: "Compra de X.XX ações SIM/NÃO"
+        // Format: "Compra de X.XX ações SIM/NÃO" or "Compra de X.XX acoes SIM/NÃO"
+        // Note: Some entries have "acoes" without accent, others have "ações" with accent
         const description = entry.description || ''
-        const sharesMatch = description.match(/Compra de ([\d.,]+) ações (SIM|NÃO)/i)
+        const sharesMatch = description.match(/Compra de ([\d.,]+) (?:ações|acoes) (SIM|NÃO|NAO)/i)
 
         let outcome: 'yes' | 'no' | null = null
         let shares: number | null = null
 
         if (sharesMatch) {
           shares = parseFloat(sharesMatch[1].replace(',', '.'))
-          outcome = sharesMatch[2].toUpperCase() === 'SIM' ? 'yes' : 'no'
+          const outcomeText = sharesMatch[2].toUpperCase()
+          outcome = outcomeText === 'SIM' ? 'yes' : 'no' // NÃO or NAO both map to 'no'
         }
 
         return {
