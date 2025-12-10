@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { TrendingUp, Wallet, Menu, LogOut, Plus, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Sheet,
   SheetContent,
@@ -66,6 +67,9 @@ export function Header() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          {/* Theme Toggle */}
+          <ThemeToggle />
+
           {authLoading ? (
             <div className="w-32 h-10 bg-muted animate-pulse rounded-lg" />
           ) : user ? (

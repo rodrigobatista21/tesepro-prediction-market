@@ -48,82 +48,138 @@
   --color-no-foreground: var(--no-foreground);
 }
 
-/* Dark Mode Institucional - Bloomberg / Faria Lima style */
+/* ============================================
+   LIGHT MODE - Polymarket/Kalshi Inspired
+   Clean, professional financial platform
+   ============================================ */
 :root {
   --radius: 0.625rem;
-  /* TesePro Dark Theme - Institutional Trading Platform */
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #0f0f12;
-  --card-foreground: #fafafa;
-  --popover: #111114;
-  --popover-foreground: #fafafa;
+
+  /* Light Theme - Default (Clean & Professional) */
+  --background: #ffffff;
+  --foreground: #0f172a;
+
+  /* Cards with subtle shadow feel */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  /* Popovers/Dropdowns */
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  /* Primary - Emerald/Teal (Trust & Finance) */
   --primary: #10b981;
   --primary-foreground: #ffffff;
-  --secondary: #18181b;
-  --secondary-foreground: #fafafa;
-  --muted: #18181b;
-  --muted-foreground: #71717a;
-  --accent: #1c1c21;
-  --accent-foreground: #fafafa;
-  --destructive: #dc2626;
-  --border: #27272a;
-  --input: #1c1c21;
+
+  /* Secondary - Subtle gray */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+
+  /* Muted - For less important text */
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+
+  /* Accent - Hover states */
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+
+  /* Destructive - Errors */
+  --destructive: #ef4444;
+
+  /* Borders - Clean separation */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
   --ring: #10b981;
-  /* Trading colors - Professional */
+
+  /* Trading colors - Professional Market Style */
+  /* YES - Blue (like Kalshi) for clarity */
   --yes: #10b981;
   --yes-foreground: #ffffff;
-  --no: #ef4444;
+  /* NO - Red/Rose for contrast */
+  --no: #f43f5e;
   --no-foreground: #ffffff;
-  /* Charts - Institutional palette */
+
+  /* Charts - Professional palette */
   --chart-1: #10b981;
   --chart-2: #3b82f6;
   --chart-3: #f59e0b;
   --chart-4: #8b5cf6;
   --chart-5: #ec4899;
+
   /* Sidebar */
-  --sidebar: #09090b;
-  --sidebar-foreground: #fafafa;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0f172a;
   --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #18181b;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #27272a;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
   --sidebar-ring: #10b981;
 }
 
-/* Light mode option - Professional */
-.light {
-  --background: #fafafa;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #059669;
+/* ============================================
+   DARK MODE - Bloomberg Terminal Inspired
+   Professional trading platform aesthetic
+   ============================================ */
+.dark {
+  /* Dark Theme - Premium Trading Platform */
+  --background: #0a0a0b;
+  --foreground: #fafafa;
+
+  /* Cards - Slightly elevated */
+  --card: #111113;
+  --card-foreground: #fafafa;
+
+  /* Popovers/Dropdowns */
+  --popover: #141416;
+  --popover-foreground: #fafafa;
+
+  /* Primary - Vibrant emerald */
+  --primary: #10b981;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #09090b;
-  --muted: #f4f4f5;
+
+  /* Secondary */
+  --secondary: #1c1c1f;
+  --secondary-foreground: #e2e8f0;
+
+  /* Muted */
+  --muted: #18181b;
   --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #09090b;
-  --destructive: #dc2626;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #059669;
+
+  /* Accent */
+  --accent: #1f1f23;
+  --accent-foreground: #fafafa;
+
+  /* Destructive */
+  --destructive: #ef4444;
+
+  /* Borders - Subtle */
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #10b981;
+
+  /* Trading colors - High contrast on dark */
   --yes: #10b981;
   --yes-foreground: #ffffff;
-  --no: #ef4444;
+  --no: #f43f5e;
   --no-foreground: #ffffff;
-  --sidebar: #fafafa;
-  --sidebar-foreground: #09090b;
-  --sidebar-primary: #059669;
+
+  /* Charts */
+  --chart-1: #10b981;
+  --chart-2: #3b82f6;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ec4899;
+
+  /* Sidebar */
+  --sidebar: #0a0a0b;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #09090b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #059669;
+  --sidebar-accent: #1c1c1f;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #10b981;
 }
 
 @layer base {
@@ -132,6 +188,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   /* Container centralizado com padding adequado */
@@ -159,7 +216,7 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* Scrollbar - Adapts to theme */
 @layer base {
   ::-webkit-scrollbar {
     width: 8px;
@@ -182,17 +239,53 @@
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
   }
+
+  .transition-theme {
+    transition: background-color 0.3s ease,
+                border-color 0.3s ease,
+                color 0.3s ease,
+                box-shadow 0.3s ease;
+  }
 }
 
-/* Gradient backgrounds - Institutional */
+/* Gradient backgrounds */
 @layer utilities {
   .bg-gradient-radial {
     background: radial-gradient(ellipse at top, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
   }
+
+  /* Light mode hero pattern */
   .bg-hero-pattern {
     background-image:
-      radial-gradient(at 40% 20%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, rgba(16, 185, 129, 0.06) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+      radial-gradient(at 40% 20%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.03) 0px, transparent 50%);
+  }
+
+  /* Dark mode has stronger gradients */
+  .dark .bg-hero-pattern {
+    background-image:
+      radial-gradient(at 40% 20%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+  }
+}
+
+/* Card shadows - Different per theme */
+@layer utilities {
+  .card-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+
+  .dark .card-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+  }
+
+  .card-shadow-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .dark .card-shadow-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
   }
 }

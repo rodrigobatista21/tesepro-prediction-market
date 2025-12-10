@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import "./globals.css";
@@ -72,14 +73,38 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const theme = localStorage.getItem('tesepro-theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
+                } else if (theme === 'light') {
+                  document.documentElement.classList.remove('dark');
+                } else {
+                  // system preference
+                  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                  }
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background flex flex-col`}
       >
-        <Header />
-        <main className="container py-8 flex-1">{children}</main>
-        <Footer />
-        <Toaster position="top-center" richColors />
+        <ThemeProvider defaultTheme="system" storageKey="tesepro-theme">
+          <Header />
+          <main className="container py-8 flex-1">{children}</main>
+          <Footer />
+          <Toaster position="top-center" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );
