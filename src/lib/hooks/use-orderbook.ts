@@ -47,30 +47,22 @@ export function useOrderBook(marketId: string, outcome: boolean) {
         p_outcome: outcome
       })
 
-      console.log('[useOrderBook] get_best_prices response:', { marketId, outcome, pricesData, pricesErr })
-
-      if (pricesErr) {
-        console.error('[useOrderBook] get_best_prices error:', pricesErr)
-        throw pricesErr
-      }
+      if (pricesErr) throw pricesErr
 
       if (pricesData && pricesData.length > 0) {
-        const prices = {
+        setBestPrices({
           best_bid: pricesData[0].best_bid ? Number(pricesData[0].best_bid) : null,
           best_ask: pricesData[0].best_ask ? Number(pricesData[0].best_ask) : null,
           bid_quantity: pricesData[0].bid_quantity ? Number(pricesData[0].bid_quantity) : null,
           ask_quantity: pricesData[0].ask_quantity ? Number(pricesData[0].ask_quantity) : null
-        }
-        console.log('[useOrderBook] Setting bestPrices:', prices)
-        setBestPrices(prices)
+        })
       } else {
-        console.log('[useOrderBook] No prices data, setting null')
         setBestPrices(null)
       }
 
       setError(null)
     } catch (err) {
-      console.error('[useOrderBook] Error fetching order book:', err)
+      console.error('Error fetching order book:', err)
       setError(err instanceof Error ? err.message : 'Erro ao carregar order book')
     } finally {
       setIsLoading(false)
