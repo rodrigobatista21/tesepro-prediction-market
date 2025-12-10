@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import {
   TrendingUp,
@@ -13,7 +13,11 @@ import {
   XCircle,
   ChevronRight,
   Filter,
-  Package
+  Package,
+  Trophy,
+  CircleDot,
+  History,
+  Layers
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -52,10 +56,37 @@ interface LegacyPositionWithMarket extends MarketPosition {
   profitLossPercent: number
 }
 
+// Tipo unificado para exibição
+interface UnifiedPosition {
+  id: string
+  marketId: string
+  marketTitle: string
+  isOpen: boolean
+  isYes: boolean
+  shares: number
+  avgCost: number
+  currentValue: number
+  pnl: number
+  pnlPercent: number
+  marketOutcome: boolean | null // resultado do mercado
+  didWin: boolean | null // se o usuário ganhou
+  type: 'orderbook' | 'legacy'
+  // Para legacy com ambas posições
+  hasYes?: boolean
+  hasNo?: boolean
+  sharesYes?: number
+  sharesNo?: number
+  avgCostYes?: number
+  avgCostNo?: number
+  currentOddsYes?: number
+  currentOddsNo?: number
+}
+
 export default function MinhasApostasPage() {
   const { user, isLoading: authLoading } = useAuth()
   const [legacyPositions, setLegacyPositions] = useState<LegacyPositionWithMarket[]>([])
   const [isLoadingLegacy, setIsLoadingLegacy] = useState(true)
+  const [activeTab, setActiveTab] = useState('active')
   const subscribed = useRef(false)
 
   // Hooks do Order Book
@@ -135,7 +166,7 @@ export default function MinhasApostasPage() {
     fetchLegacyPositions()
   }, [fetchLegacyPositions])
 
-  // Realtime subscription para posições legadas
+  // Realtime subscription
   useEffect(() => {
     if (!user) return
     if (subscribed.current) return
@@ -187,6 +218,96 @@ export default function MinhasApostasPage() {
     }
   }, [user, supabase, fetchLegacyPositions, refreshPositions, refreshOrders])
 
+  // Unificar posições para facilitar filtragem
+  const unifiedPositions = useMemo((): UnifiedPosition[] => {
+    const positions: UnifiedPosition[] = []
+
+    // Order Book positions
+    orderBookPositions.forEach((p, idx) => {
+      const isOpen = p.market_status === 'open'
+      const marketOutcome = p.market_status === 'open' ? null : p.market_status === 'resolved_yes'
+      const didWin = marketOutcome !== null ? p.outcome === marketOutcome : null
+
+      positions.push({
+        id: `ob-${idx}`,
+        marketId: p.market_id,
+        marketTitle: p.market_title,
+        isOpen,
+        isYes: p.outcome,
+        shares: p.quantity,
+        avgCost: p.avg_cost || 0,
+        currentValue: p.current_value,
+        pnl: p.unrealized_pnl,
+        pnlPercent: p.avg_cost && p.avg_cost > 0
+          ? (p.unrealized_pnl / (p.avg_cost * p.quantity)) * 100
+          : 0,
+        marketOutcome,
+        didWin,
+        type: 'orderbook',
+      })
+    })
+
+    // Legacy positions
+    legacyPositions.forEach((p) => {
+      const isOpen = p.market.outcome === null
+      const marketOutcome = p.market.outcome
+
+      // Calcular se ganhou considerando ambas posições
+      let didWin: boolean | null = null
+      if (marketOutcome !== null) {
+        const wonYes = p.shares_yes > 0 && marketOutcome === true
+        const wonNo = p.shares_no > 0 && marketOutcome === false
+        didWin = wonYes || wonNo
+      }
+
+      positions.push({
+        id: p.id,
+        marketId: p.market.id,
+        marketTitle: p.market.title,
+        isOpen,
+        isYes: p.shares_yes > p.shares_no,
+        shares: Math.max(p.shares_yes, p.shares_no),
+        avgCost: p.shares_yes > 0 ? p.avg_cost_yes : p.avg_cost_no,
+        currentValue: p.totalValue,
+        pnl: p.profitLoss,
+        pnlPercent: p.profitLossPercent,
+        marketOutcome,
+        didWin,
+        type: 'legacy',
+        hasYes: p.shares_yes > 0,
+        hasNo: p.shares_no > 0,
+        sharesYes: p.shares_yes,
+        sharesNo: p.shares_no,
+        avgCostYes: p.avg_cost_yes,
+        avgCostNo: p.avg_cost_no,
+        currentOddsYes: p.currentOddsYes,
+        currentOddsNo: p.currentOddsNo,
+      })
+    })
+
+    return positions
+  }, [orderBookPositions, legacyPositions])
+
+  // Filtrar por status
+  const activePositions = unifiedPositions.filter(p => p.isOpen)
+  const resolvedPositions = unifiedPositions.filter(p => !p.isOpen)
+  const wonPositions = resolvedPositions.filter(p => p.didWin === true)
+  const lostPositions = resolvedPositions.filter(p => p.didWin === false)
+
+  // Calcular métricas por categoria
+  const activeStats = useMemo(() => ({
+    count: activePositions.length,
+    value: activePositions.reduce((sum, p) => sum + p.currentValue, 0),
+    pnl: activePositions.reduce((sum, p) => sum + p.pnl, 0),
+  }), [activePositions])
+
+  const resolvedStats = useMemo(() => ({
+    count: resolvedPositions.length,
+    won: wonPositions.length,
+    lost: lostPositions.length,
+    totalPnl: resolvedPositions.reduce((sum, p) => sum + p.pnl, 0),
+  }), [resolvedPositions, wonPositions, lostPositions])
+
   const handleCancelOrder = async (orderId: string) => {
     const success = await cancelOrder(orderId)
     if (success) {
@@ -216,36 +337,14 @@ export default function MinhasApostasPage() {
   }
 
   const isLoading = isLoadingLegacy || isLoadingOrderBook || isLoadingOrders
-
-  // Calcula totais das posições do Order Book
-  const orderBookTotalValue = orderBookPositions.reduce((sum, p) => sum + p.current_value, 0)
-  const orderBookTotalPnL = orderBookPositions.reduce((sum, p) => sum + p.unrealized_pnl, 0)
-  const orderBookTotalCost = orderBookPositions.reduce((sum, p) => sum + (p.avg_cost || 0) * p.quantity, 0)
-
-  // Calcula totais das posições legadas
-  const legacyTotalValue = legacyPositions.reduce((sum, p) => sum + p.totalValue, 0)
-  const legacyTotalPnL = legacyPositions.reduce((sum, p) => sum + p.profitLoss, 0)
-  const legacyTotalCost = legacyPositions.reduce((sum, p) => {
-    const costYes = p.shares_yes * p.avg_cost_yes
-    const costNo = p.shares_no * p.avg_cost_no
-    return sum + costYes + costNo
-  }, 0)
+  const hasPositions = unifiedPositions.length > 0
+  const hasOrders = openOrders.length > 0
 
   // Total geral
-  const totalValue = orderBookTotalValue + legacyTotalValue
-  const totalPnL = orderBookTotalPnL + legacyTotalPnL
-  const totalInvested = orderBookTotalCost + legacyTotalCost
+  const totalValue = unifiedPositions.reduce((sum, p) => sum + p.currentValue, 0)
+  const totalPnL = unifiedPositions.reduce((sum, p) => sum + p.pnl, 0)
+  const totalInvested = unifiedPositions.reduce((sum, p) => sum + (p.avgCost * p.shares), 0)
   const totalROI = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
-
-  const hasPositions = orderBookPositions.length > 0 || legacyPositions.length > 0
-  const hasOrders = openOrders.length > 0
-  const totalPositions = orderBookPositions.length + legacyPositions.length
-
-  // Contagem de posições por tipo
-  const yesPositions = orderBookPositions.filter(p => p.outcome).length +
-    legacyPositions.filter(p => p.shares_yes > 0).length
-  const noPositions = orderBookPositions.filter(p => !p.outcome).length +
-    legacyPositions.filter(p => p.shares_no > 0).length
 
   return (
     <div className="space-y-6 pb-8">
@@ -277,7 +376,7 @@ export default function MinhasApostasPage() {
               </div>
               <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{formatBRL(totalValue)}</p>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                {totalPositions} {totalPositions === 1 ? 'posição' : 'posições'}
+                {unifiedPositions.length} {unifiedPositions.length === 1 ? 'posição' : 'posições'}
               </p>
             </CardContent>
           </Card>
@@ -313,97 +412,153 @@ export default function MinhasApostasPage() {
             </CardContent>
           </Card>
 
-          {/* Investido */}
-          <Card>
+          {/* Posições Ativas */}
+          <Card className="bg-blue-500/5 border-blue-500/20">
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                <PieChart className="w-4 h-4" />
-                <span className="text-xs sm:text-sm font-medium">Investido</span>
+                <CircleDot className="w-4 h-4 text-blue-500" />
+                <span className="text-xs sm:text-sm font-medium">Em Andamento</span>
               </div>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{formatBRL(totalInvested)}</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{activeStats.count}</p>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                Custo total das posições
+                {formatBRL(activeStats.value)} investidos
               </p>
             </CardContent>
           </Card>
 
-          {/* Distribuição SIM/NÃO */}
+          {/* Histórico */}
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                <Clock className="w-4 h-4" />
-                <span className="text-xs sm:text-sm font-medium">Distribuição</span>
+                <Trophy className="w-4 h-4 text-amber-500" />
+                <span className="text-xs sm:text-sm font-medium">Resolvidas</span>
               </div>
-              <div className="flex items-center gap-3 mt-1">
-                <div className="flex-1">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-emerald-500 font-medium">SIM</span>
-                    <span className="text-rose-500 font-medium">NÃO</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xl sm:text-2xl lg:text-3xl font-bold">{resolvedStats.count}</span>
+                {resolvedStats.count > 0 && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <span className="text-emerald-500 font-medium">{resolvedStats.won}W</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="text-rose-500 font-medium">{resolvedStats.lost}L</span>
                   </div>
-                  <Progress
-                    value={totalPositions > 0 ? (yesPositions / totalPositions) * 100 : 50}
-                    className="h-2"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>{yesPositions}</span>
-                    <span>{noPositions}</span>
-                  </div>
-                </div>
+                )}
               </div>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                {resolvedStats.count > 0
+                  ? `${((resolvedStats.won / resolvedStats.count) * 100).toFixed(0)}% win rate`
+                  : 'Nenhuma ainda'
+                }
+              </p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Tabs */}
-      <Tabs defaultValue="positions" className="w-full">
-        <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
-          <TabsTrigger value="positions" className="flex items-center gap-2">
-            <PieChart className="w-4 h-4" />
-            <span>Posições</span>
-            {totalPositions > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
-                {totalPositions}
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full sm:w-auto grid grid-cols-4 sm:inline-flex h-auto p-1">
+          <TabsTrigger value="active" className="flex items-center gap-1.5 px-3 py-2">
+            <CircleDot className="w-4 h-4" />
+            <span className="hidden sm:inline">Ativas</span>
+            {activePositions.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">
+                {activePositions.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-2">
+          <TabsTrigger value="resolved" className="flex items-center gap-1.5 px-3 py-2">
+            <History className="w-4 h-4" />
+            <span className="hidden sm:inline">Resolvidas</span>
+            {resolvedPositions.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">
+                {resolvedPositions.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="orders" className="flex items-center gap-1.5 px-3 py-2">
             <Clock className="w-4 h-4" />
-            <span>Ordens</span>
+            <span className="hidden sm:inline">Ordens</span>
             {openOrders.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
+              <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">
                 {openOrders.length}
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="all" className="flex items-center gap-1.5 px-3 py-2">
+            <Layers className="w-4 h-4" />
+            <span className="hidden sm:inline">Todas</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="positions" className="mt-6">
+        {/* Posições Ativas */}
+        <TabsContent value="active" className="mt-6">
           {isLoading ? (
             <PositionsSkeleton />
-          ) : !hasPositions ? (
+          ) : activePositions.length === 0 ? (
             <EmptyState
-              icon={<PieChart className="w-12 h-12" />}
-              title="Nenhuma posição ainda"
-              description="Explore os mercados e faça sua primeira operação para começar a construir seu portfólio."
+              icon={<CircleDot className="w-12 h-12" />}
+              title="Nenhuma posição ativa"
+              description="Você não tem posições em mercados abertos. Explore os mercados e faça sua primeira aposta!"
               actionLabel="Ver Mercados"
               actionHref="/"
             />
           ) : (
             <div className="space-y-3">
-              {/* Posições do Order Book */}
-              {orderBookPositions.map((position, index) => (
-                <PositionCard key={`ob-${index}`} position={position} />
-              ))}
-
-              {/* Posições Legadas (CPMM) */}
-              {legacyPositions.map((position) => (
-                <LegacyPositionCard key={position.id} position={position} />
+              {/* Resumo das ativas */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                <span>{activePositions.length} posições em mercados abertos</span>
+                <span className={cn(
+                  "font-medium",
+                  activeStats.pnl >= 0 ? "text-emerald-500" : "text-rose-500"
+                )}>
+                  {activeStats.pnl >= 0 ? '+' : ''}{formatBRL(activeStats.pnl)} não realizado
+                </span>
+              </div>
+              {activePositions.map((position) => (
+                <PositionCard key={position.id} position={position} />
               ))}
             </div>
           )}
         </TabsContent>
 
+        {/* Posições Resolvidas */}
+        <TabsContent value="resolved" className="mt-6">
+          {isLoading ? (
+            <PositionsSkeleton />
+          ) : resolvedPositions.length === 0 ? (
+            <EmptyState
+              icon={<History className="w-12 h-12" />}
+              title="Nenhuma posição resolvida"
+              description="Quando os mercados em que você apostou forem resolvidos, seus resultados aparecerão aqui."
+              actionLabel="Ver Mercados"
+              actionHref="/"
+            />
+          ) : (
+            <div className="space-y-3">
+              {/* Resumo das resolvidas */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                <div className="flex items-center gap-4">
+                  <span>{resolvedPositions.length} mercados resolvidos</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/50 bg-emerald-500/10">
+                      <Trophy className="w-3 h-3 mr-1" />
+                      {wonPositions.length} vitórias
+                    </Badge>
+                    <Badge variant="outline" className="text-rose-500 border-rose-500/50 bg-rose-500/10">
+                      <XCircle className="w-3 h-3 mr-1" />
+                      {lostPositions.length} derrotas
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              {resolvedPositions.map((position) => (
+                <PositionCard key={position.id} position={position} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Ordens Abertas */}
         <TabsContent value="orders" className="mt-6">
           {isLoadingOrders ? (
             <PositionsSkeleton />
@@ -424,6 +579,27 @@ export default function MinhasApostasPage() {
                   onCancel={handleCancelOrder}
                   isCancelling={isCancelling}
                 />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Todas as Posições */}
+        <TabsContent value="all" className="mt-6">
+          {isLoading ? (
+            <PositionsSkeleton />
+          ) : !hasPositions ? (
+            <EmptyState
+              icon={<PieChart className="w-12 h-12" />}
+              title="Nenhuma posição ainda"
+              description="Explore os mercados e faça sua primeira operação para começar a construir seu portfólio."
+              actionLabel="Ver Mercados"
+              actionHref="/"
+            />
+          ) : (
+            <div className="space-y-3">
+              {unifiedPositions.map((position) => (
+                <PositionCard key={position.id} position={position} />
               ))}
             </div>
           )}
@@ -463,30 +639,37 @@ function EmptyState({
   )
 }
 
-// Card de Posição (Order Book) - Design Limpo
-function PositionCard({ position }: { position: OrderBookPosition }) {
-  const isYes = position.outcome
-  const isResolved = position.market_status !== 'open'
-  const pnlPercent = position.avg_cost && position.avg_cost > 0
-    ? (position.unrealized_pnl / (position.avg_cost * position.quantity)) * 100
-    : 0
+// Card de Posição Unificado
+function PositionCard({ position }: { position: UnifiedPosition }) {
+  const isLegacyWithBoth = position.type === 'legacy' && position.hasYes && position.hasNo
 
   return (
-    <Link href={`/mercado/${position.market_id}`}>
-      <Card className="group hover:shadow-lg dark:hover:shadow-none hover:border-primary/50 transition-all cursor-pointer">
+    <Link href={`/mercado/${position.marketId}`}>
+      <Card className={cn(
+        "group hover:shadow-lg dark:hover:shadow-none transition-all cursor-pointer",
+        position.isOpen
+          ? "hover:border-primary/50"
+          : position.didWin
+            ? "hover:border-emerald-500/50 border-emerald-500/20 bg-emerald-500/5"
+            : "hover:border-rose-500/50 border-rose-500/20 bg-rose-500/5"
+      )}>
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start gap-4">
-            {/* Indicador de Posição */}
+            {/* Indicador de Status */}
             <div className={cn(
               "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-              isYes
-                ? "bg-emerald-500/10 text-emerald-500"
-                : "bg-rose-500/10 text-rose-500"
+              position.isOpen
+                ? position.isYes
+                  ? "bg-emerald-500/10 text-emerald-500"
+                  : "bg-rose-500/10 text-rose-500"
+                : position.didWin
+                  ? "bg-emerald-500/20 text-emerald-500"
+                  : "bg-rose-500/20 text-rose-500"
             )}>
-              {isYes ? (
-                <CheckCircle2 className="w-6 h-6" />
+              {position.isOpen ? (
+                position.isYes ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />
               ) : (
-                <XCircle className="w-6 h-6" />
+                position.didWin ? <Trophy className="w-6 h-6" /> : <XCircle className="w-6 h-6" />
               )}
             </div>
 
@@ -495,196 +678,160 @@ function PositionCard({ position }: { position: OrderBookPosition }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
-                    {position.market_title}
+                    {position.marketTitle}
                   </h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "font-semibold",
-                        isYes
-                          ? "border-emerald-500/50 text-emerald-500 bg-emerald-500/10"
-                          : "border-rose-500/50 text-rose-500 bg-rose-500/10"
-                      )}
-                    >
-                      {isYes ? 'SIM' : 'NÃO'}
-                    </Badge>
-                    {isResolved && (
-                      <Badge variant="secondary">
-                        {position.market_status === 'won' ? 'Venceu' : 'Perdeu'}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {/* Status Badge */}
+                    {position.isOpen ? (
+                      <Badge variant="outline" className="border-blue-500/50 text-blue-500 bg-blue-500/10 font-medium">
+                        <CircleDot className="w-3 h-3 mr-1" />
+                        Em andamento
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-medium",
+                          position.didWin
+                            ? "border-emerald-500/50 text-emerald-500 bg-emerald-500/10"
+                            : "border-rose-500/50 text-rose-500 bg-rose-500/10"
+                        )}
+                      >
+                        {position.didWin ? (
+                          <>
+                            <Trophy className="w-3 h-3 mr-1" />
+                            Você ganhou!
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Você perdeu
+                          </>
+                        )}
+                      </Badge>
+                    )}
+
+                    {/* Position Badge */}
+                    {isLegacyWithBoth ? (
+                      <>
+                        <Badge variant="outline" className="border-emerald-500/50 text-emerald-500 bg-emerald-500/10">
+                          SIM
+                        </Badge>
+                        <Badge variant="outline" className="border-rose-500/50 text-rose-500 bg-rose-500/10">
+                          NÃO
+                        </Badge>
+                      </>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-semibold",
+                          position.isYes
+                            ? "border-emerald-500/50 text-emerald-500 bg-emerald-500/10"
+                            : "border-rose-500/50 text-rose-500 bg-rose-500/10"
+                        )}
+                      >
+                        {position.isYes ? 'SIM' : 'NÃO'}
+                      </Badge>
+                    )}
+
+                    {/* Resultado do Mercado (se resolvido) */}
+                    {!position.isOpen && (
+                      <Badge variant="secondary" className="text-xs">
+                        Resultado: {position.marketOutcome ? 'SIM' : 'NÃO'}
                       </Badge>
                     )}
                   </div>
                 </div>
 
-                {/* Seta de navegação */}
                 <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
               </div>
 
               {/* Métricas */}
-              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Ações</p>
-                  <p className="font-semibold">{position.quantity.toFixed(0)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Valor Atual</p>
-                  <p className="font-semibold">{formatBRL(position.current_value)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground mb-1">Retorno</p>
-                  <p className={cn(
-                    "font-semibold flex items-center justify-end gap-1",
-                    position.unrealized_pnl >= 0 ? "text-emerald-500" : "text-rose-500"
-                  )}>
-                    {position.unrealized_pnl >= 0 ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    {position.unrealized_pnl >= 0 ? '+' : ''}{formatBRL(position.unrealized_pnl)}
-                    <span className="text-xs opacity-80">
-                      ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  )
-}
-
-// Card de Posição Legada (CPMM)
-function LegacyPositionCard({ position }: { position: LegacyPositionWithMarket }) {
-  const { market } = position
-  const isResolved = market.outcome !== null
-  const hasYes = position.shares_yes > 0
-  const hasNo = position.shares_no > 0
-
-  // Se tem ambas as posições, exibe como duas linhas
-  const positions = []
-  if (hasYes) {
-    positions.push({
-      isYes: true,
-      shares: position.shares_yes,
-      avgCost: position.avg_cost_yes,
-      currentOdds: position.currentOddsYes,
-      value: position.shares_yes * (position.currentOddsYes / 100),
-    })
-  }
-  if (hasNo) {
-    positions.push({
-      isYes: false,
-      shares: position.shares_no,
-      avgCost: position.avg_cost_no,
-      currentOdds: position.currentOddsNo,
-      value: position.shares_no * (position.currentOddsNo / 100),
-    })
-  }
-
-  return (
-    <Link href={`/mercado/${market.id}`}>
-      <Card className="group hover:shadow-lg dark:hover:shadow-none hover:border-primary/50 transition-all cursor-pointer border-dashed">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex items-start gap-4">
-            {/* Indicador - usa a posição principal */}
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-              hasYes && !hasNo
-                ? "bg-emerald-500/10 text-emerald-500"
-                : hasNo && !hasYes
-                  ? "bg-rose-500/10 text-rose-500"
-                  : "bg-primary/10 text-primary"
-            )}>
-              {hasYes && !hasNo ? (
-                <CheckCircle2 className="w-6 h-6" />
-              ) : hasNo && !hasYes ? (
-                <XCircle className="w-6 h-6" />
-              ) : (
-                <PieChart className="w-6 h-6" />
-              )}
-            </div>
-
-            {/* Conteúdo Principal */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
-                    {market.title}
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    {isResolved ? (
-                      <Badge variant="secondary">
-                        Resolvido: {market.outcome ? 'SIM' : 'NÃO'}
-                      </Badge>
-                    ) : (
-                      <>
-                        {hasYes && (
-                          <Badge
-                            variant="outline"
-                            className="border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-semibold"
-                          >
-                            SIM @ {position.currentOddsYes.toFixed(0)}%
-                          </Badge>
-                        )}
-                        {hasNo && (
-                          <Badge
-                            variant="outline"
-                            className="border-rose-500/50 text-rose-500 bg-rose-500/10 font-semibold"
-                          >
-                            NÃO @ {position.currentOddsNo.toFixed(0)}%
-                          </Badge>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
-              </div>
-
-              {/* Métricas por posição */}
-              <div className="mt-4 pt-4 border-t space-y-3">
-                {positions.map((pos, idx) => (
-                  <div key={idx} className="grid grid-cols-3 gap-4">
+              {isLegacyWithBoth ? (
+                <div className="mt-4 pt-4 border-t space-y-3">
+                  {/* Linha SIM */}
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Ações {pos.isYes ? 'SIM' : 'NÃO'}
-                      </p>
-                      <p className="font-semibold">{pos.shares.toFixed(0)}</p>
+                      <p className="text-xs text-muted-foreground mb-1">Ações SIM</p>
+                      <p className="font-semibold text-emerald-500">{position.sharesYes?.toFixed(0)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Custo Médio</p>
-                      <p className="font-semibold">{formatBRL(pos.avgCost)}</p>
+                      <p className="font-semibold">{formatBRL(position.avgCostYes || 0)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground mb-1">Valor Atual</p>
-                      <p className="font-semibold">{formatBRL(pos.value)}</p>
+                      <p className="font-semibold">
+                        {formatBRL((position.sharesYes || 0) * ((position.currentOddsYes || 0) / 100))}
+                      </p>
                     </div>
                   </div>
-                ))}
-
-                {/* Total do card */}
-                <div className="flex items-center justify-between pt-2 border-t border-dashed">
-                  <span className="text-sm text-muted-foreground">Retorno Total</span>
-                  <span className={cn(
-                    "font-semibold flex items-center gap-1",
-                    position.profitLoss >= 0 ? "text-emerald-500" : "text-rose-500"
-                  )}>
-                    {position.profitLoss >= 0 ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    {position.profitLoss >= 0 ? '+' : ''}{formatBRL(position.profitLoss)}
-                    <span className="text-xs opacity-80">
-                      ({position.profitLossPercent >= 0 ? '+' : ''}{position.profitLossPercent.toFixed(1)}%)
+                  {/* Linha NÃO */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Ações NÃO</p>
+                      <p className="font-semibold text-rose-500">{position.sharesNo?.toFixed(0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Custo Médio</p>
+                      <p className="font-semibold">{formatBRL(position.avgCostNo || 0)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground mb-1">Valor Atual</p>
+                      <p className="font-semibold">
+                        {formatBRL((position.sharesNo || 0) * ((position.currentOddsNo || 0) / 100))}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Total */}
+                  <div className="flex items-center justify-between pt-2 border-t border-dashed">
+                    <span className="text-sm text-muted-foreground">Retorno Total</span>
+                    <span className={cn(
+                      "font-semibold flex items-center gap-1",
+                      position.pnl >= 0 ? "text-emerald-500" : "text-rose-500"
+                    )}>
+                      {position.pnl >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {position.pnl >= 0 ? '+' : ''}{formatBRL(position.pnl)}
+                      <span className="text-xs opacity-80">
+                        ({position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(1)}%)
+                      </span>
                     </span>
-                  </span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Ações</p>
+                    <p className="font-semibold">{position.shares.toFixed(0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {position.isOpen ? 'Valor Atual' : 'Valor Final'}
+                    </p>
+                    <p className="font-semibold">{formatBRL(position.currentValue)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {position.isOpen ? 'Retorno' : 'Resultado'}
+                    </p>
+                    <p className={cn(
+                      "font-semibold flex items-center justify-end gap-1",
+                      position.pnl >= 0 ? "text-emerald-500" : "text-rose-500"
+                    )}>
+                      {position.pnl >= 0 ? (
+                        <ArrowUpRight className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      {position.pnl >= 0 ? '+' : ''}{formatBRL(position.pnl)}
+                      <span className="text-xs opacity-80">
+                        ({position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(1)}%)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -864,7 +1011,7 @@ function PositionsSkeleton() {
               <div className="flex-1">
                 <Skeleton className="h-5 w-3/4 mb-2" />
                 <div className="flex gap-2 mb-4">
-                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-24" />
                   <Skeleton className="h-5 w-16" />
                 </div>
                 <div className="grid grid-cols-3 gap-4 pt-4 border-t">
