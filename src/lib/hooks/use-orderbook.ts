@@ -22,29 +22,37 @@ export function useOrderBook(marketId: string, outcome: boolean) {
 
   const fetchOrderBook = useCallback(async () => {
     try {
-      // Buscar order book detalhado
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: err } = await (supabase.rpc as any)('get_order_book_detailed', {
-        p_market_id: marketId,
-        p_outcome: outcome,
-        p_depth: 10
-      })
+      // Buscar order book detalhado (non-blocking - we don't need this for trading)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error: err } = await (supabase.rpc as any)('get_order_book_detailed', {
+          p_market_id: marketId,
+          p_outcome: outcome,
+          p_depth: 10
+        })
 
-      if (err) throw err
+        if (!err && data) {
+          const parsed = parseOrderBookData(data)
+          setOrderBook(parsed)
+        }
+      } catch (detailErr) {
+        // Non-critical - order book details are optional
+        console.warn('[useOrderBook] get_order_book_detailed failed (non-critical):', detailErr)
+      }
 
-      const parsed = parseOrderBookData(data || [])
-      setOrderBook(parsed)
-
-      // Buscar melhores preços
+      // Buscar melhores preços - THIS IS CRITICAL for trading
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: pricesData, error: pricesErr } = await (supabase.rpc as any)('get_best_prices', {
         p_market_id: marketId,
         p_outcome: outcome
       })
 
-      if (pricesErr) throw pricesErr
+      console.log('[useOrderBook] get_best_prices response:', { marketId, outcome, pricesData, pricesErr })
 
-      console.log('[useOrderBook] get_best_prices response:', { marketId, outcome, pricesData })
+      if (pricesErr) {
+        console.error('[useOrderBook] get_best_prices error:', pricesErr)
+        throw pricesErr
+      }
 
       if (pricesData && pricesData.length > 0) {
         const prices = {
