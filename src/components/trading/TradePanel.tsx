@@ -4,9 +4,16 @@ import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, Info, Sparkles, AlertTriangle, XCircle } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, Info, Sparkles, AlertTriangle, XCircle, ArrowRight } from 'lucide-react'
 import { formatBRL, formatROI, formatShares } from '@/lib/utils/format'
-import { previewBuy, calculateMaxRecommendedAmount, getSlippageWarning, type MarketPools } from '@/lib/utils/cpmm'
+import {
+  previewBuy,
+  calculateMaxRecommendedAmount,
+  calculateLiquidityBasedAmounts,
+  getROIWarning,
+  getROILevel,
+  type MarketPools
+} from '@/lib/utils/cpmm'
 import { useTrade } from '@/lib/hooks/use-trade'
 import { cn } from '@/lib/utils'
 
@@ -17,8 +24,6 @@ interface TradePanelProps {
   balance: number
   onTradeSuccess?: () => void
 }
-
-const QUICK_AMOUNTS = [10, 25, 50, 100]
 
 export function TradePanel({
   marketId,
@@ -34,21 +39,45 @@ export function TradePanel({
   const amountNumber = parseFloat(amount) || 0
 
   const pools: MarketPools = useMemo(() => ({ poolYes, poolNo }), [poolYes, poolNo])
+  const totalLiquidity = poolYes + poolNo
 
+  // Preview da operacao atual
   const preview = useMemo(() => {
     if (amountNumber < 1) return null
     return previewBuy(pools, outcome, amountNumber)
   }, [pools, outcome, amountNumber])
 
-  // Calcula valor maximo recomendado para slippage aceitavel
+  // Preview do lado oposto (para sugerir quando ROI negativo)
+  const otherSidePreview = useMemo(() => {
+    if (amountNumber < 1) return null
+    return previewBuy(pools, !outcome, amountNumber)
+  }, [pools, outcome, amountNumber])
+
+  // Quick amounts baseados na liquidez do mercado
+  const quickAmounts = useMemo(() => {
+    const liquidityBased = calculateLiquidityBasedAmounts(pools, balance)
+    // Fallback para valores fixos se mercado muito pequeno
+    if (liquidityBased.length < 2) {
+      return [10, 25, 50, 100].filter(v => v <= balance)
+    }
+    return liquidityBased
+  }, [pools, balance])
+
+  // Valor maximo recomendado baseado em ROI
   const maxRecommended = useMemo(() => {
     return calculateMaxRecommendedAmount(pools, outcome)
   }, [pools, outcome])
 
-  // Obtem aviso de slippage se houver
-  const slippageWarning = useMemo(() => {
+  // Aviso baseado em ROI (nao slippage)
+  const roiWarning = useMemo(() => {
     if (!preview) return null
-    return getSlippageWarning(preview.slippageLevel)
+    return getROIWarning(preview.roi, otherSidePreview?.roi)
+  }, [preview, otherSidePreview])
+
+  // Nivel de ROI para coloracao
+  const roiLevel = useMemo(() => {
+    if (!preview) return 'excellent'
+    return getROILevel(preview.roi)
   }, [preview])
 
   const handleAmountChange = (value: string) => {
@@ -129,9 +158,9 @@ export function TradePanel({
             />
           </div>
 
-          {/* Quick amounts */}
+          {/* Quick amounts - dinamicos baseados na liquidez */}
           <div className="flex gap-2">
-            {QUICK_AMOUNTS.map((value) => (
+            {quickAmounts.map((value) => (
               <Button
                 key={value}
                 variant="outline"
@@ -148,7 +177,7 @@ export function TradePanel({
             ))}
           </div>
 
-          {/* Available balance */}
+          {/* Available balance + Liquidity info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Saldo disponível</span>
             <button
@@ -158,14 +187,18 @@ export function TradePanel({
               {formatBRL(balance)}
             </button>
           </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Liquidez do mercado</span>
+            <span>{formatBRL(totalLiquidity)}</span>
+          </div>
         </div>
 
         {/* Preview */}
         {preview && (
           <div className={cn(
             "rounded-xl border p-4 space-y-3",
-            preview.slippageLevel === 'extreme' ? 'bg-rose-500/10 border-rose-500/50' :
-            preview.slippageLevel === 'high' ? 'bg-amber-500/10 border-amber-500/50' :
+            roiLevel === 'severe_loss' ? 'bg-rose-500/10 border-rose-500/50' :
+            roiLevel === 'loss' ? 'bg-amber-500/10 border-amber-500/50' :
             'bg-muted/30 border-border/50'
           )}>
             <div className="flex items-center gap-2 text-sm font-medium">
@@ -190,19 +223,6 @@ export function TradePanel({
                   {formatBRL(outcome ? poolYes / (poolYes + poolNo) : poolNo / (poolYes + poolNo))}/ação
                 </span>
               </div>
-              {/* Slippage indicator */}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Slippage</span>
-                <span className={cn(
-                  'font-medium',
-                  preview.slippageLevel === 'low' ? 'text-emerald-500' :
-                  preview.slippageLevel === 'medium' ? 'text-amber-500' :
-                  preview.slippageLevel === 'high' ? 'text-orange-500' :
-                  'text-rose-500'
-                )}>
-                  {preview.slippage > 0 ? '+' : ''}{(preview.slippage * 100).toFixed(1)}%
-                </span>
-              </div>
               <div className="h-px bg-border/50 my-2" />
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Se ganhar</span>
@@ -215,7 +235,9 @@ export function TradePanel({
                 <span
                   className={cn(
                     'font-bold',
-                    preview.roi > 0 ? 'text-emerald-500' : 'text-rose-500'
+                    roiLevel === 'excellent' || roiLevel === 'good' ? 'text-emerald-500' :
+                    roiLevel === 'reduced' ? 'text-amber-500' :
+                    'text-rose-500'
                   )}
                 >
                   {formatROI(preview.roi)}
@@ -225,28 +247,41 @@ export function TradePanel({
           </div>
         )}
 
-        {/* Slippage Warning */}
-        {slippageWarning && (
+        {/* ROI Warning - mais inteligente que slippage */}
+        {roiWarning && (
           <div className={cn(
             'flex items-start gap-2 text-sm rounded-lg p-3',
-            slippageWarning.severity === 'info' ? 'bg-blue-500/10 text-blue-500' :
-            slippageWarning.severity === 'warning' ? 'bg-amber-500/10 text-amber-500' :
+            roiWarning.severity === 'info' ? 'bg-blue-500/10 text-blue-500' :
+            roiWarning.severity === 'warning' ? 'bg-amber-500/10 text-amber-500' :
             'bg-rose-500/10 text-rose-500'
           )}>
-            {slippageWarning.severity === 'error' ? (
+            {roiWarning.severity === 'error' ? (
               <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             ) : (
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             )}
-            <div className="space-y-1">
-              <p className="font-medium">{slippageWarning.title}</p>
-              <p className="text-xs opacity-90">{slippageWarning.message}</p>
-              {maxRecommended < amountNumber && (
+            <div className="space-y-2 flex-1">
+              <p className="font-medium">{roiWarning.title}</p>
+              <p className="text-xs opacity-90">{roiWarning.message}</p>
+
+              {/* Sugestao de valor maximo */}
+              {maxRecommended !== null && maxRecommended < amountNumber && (
                 <button
                   onClick={() => handleQuickAmount(maxRecommended)}
-                  className="text-xs underline hover:no-underline"
+                  className="text-xs underline hover:no-underline block"
                 >
                   Usar valor recomendado: {formatBRL(maxRecommended)}
+                </button>
+              )}
+
+              {/* Sugestao do outro lado quando tem ROI melhor */}
+              {roiWarning.showOtherSide && otherSidePreview && otherSidePreview.roi > preview!.roi && (
+                <button
+                  onClick={() => setOutcome(!outcome)}
+                  className="flex items-center gap-1 text-xs bg-white/10 rounded px-2 py-1 hover:bg-white/20 transition-colors"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                  Apostar {outcome ? 'NÃO' : 'SIM'}: ROI {formatROI(otherSidePreview.roi)}
                 </button>
               )}
             </div>

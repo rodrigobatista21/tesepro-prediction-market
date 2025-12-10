@@ -36,22 +36,36 @@ export interface TradePreview {
   slippageLevel: 'low' | 'medium' | 'high' | 'extreme'
 }
 
-/** Limites de slippage para avisos */
-export const SLIPPAGE_THRESHOLDS = {
-  low: 0.05,      // 5% - normal
-  medium: 0.15,   // 15% - aviso amarelo
-  high: 0.30,     // 30% - aviso vermelho
-  extreme: 0.50,  // 50% - bloquear ou aviso forte
+/** Limites de ROI para avisos (mais relevante que slippage para prediction markets) */
+export const ROI_THRESHOLDS = {
+  excellent: 0.10,   // ROI > 10% - excelente
+  good: 0,           // ROI > 0% - bom (breakeven+)
+  reduced: -0.30,    // ROI > -30% - retorno reduzido
+  loss: -0.50,       // ROI > -50% - perda moderada
+  // abaixo de -50% = perda significativa
 } as const
 
+/** Valor minimo para mostrar recomendacao (evita sugerir R$1) */
+export const MIN_RECOMMENDED_AMOUNT = 50
+
 /**
- * Determina o nivel de severidade do slippage
+ * Determina o nivel de severidade baseado no ROI (nao slippage)
+ * Mais relevante para prediction markets onde o usuario quer saber se vai lucrar
  */
+export function getROILevel(roi: number): 'excellent' | 'good' | 'reduced' | 'loss' | 'severe_loss' {
+  if (roi >= ROI_THRESHOLDS.excellent) return 'excellent'
+  if (roi >= ROI_THRESHOLDS.good) return 'good'
+  if (roi >= ROI_THRESHOLDS.reduced) return 'reduced'
+  if (roi >= ROI_THRESHOLDS.loss) return 'loss'
+  return 'severe_loss'
+}
+
+// Manter slippage para compatibilidade, mas nao usar para decisoes principais
 export function getSlippageLevel(slippage: number): 'low' | 'medium' | 'high' | 'extreme' {
   const absSlippage = Math.abs(slippage)
-  if (absSlippage >= SLIPPAGE_THRESHOLDS.extreme) return 'extreme'
-  if (absSlippage >= SLIPPAGE_THRESHOLDS.high) return 'high'
-  if (absSlippage >= SLIPPAGE_THRESHOLDS.medium) return 'medium'
+  if (absSlippage >= 0.50) return 'extreme'
+  if (absSlippage >= 0.30) return 'high'
+  if (absSlippage >= 0.15) return 'medium'
   return 'low'
 }
 
@@ -345,38 +359,49 @@ export function previewSell(
 }
 
 /**
- * Calcula o valor maximo recomendado para manter slippage abaixo do limite
+ * Calcula o valor maximo recomendado baseado em ROI minimo
  * Usa busca binaria para encontrar o valor ideal
  *
  * @param pools Estado atual dos pools
  * @param outcome true = SIM, false = NAO
- * @param maxSlippage Slippage maximo aceitavel (ex: 0.15 = 15%)
- * @returns Valor maximo recomendado em BRL
+ * @param minROI ROI minimo aceitavel (ex: -0.30 = -30%)
+ * @returns Valor maximo recomendado em BRL, ou null se nenhum valor atende o criterio
  */
 export function calculateMaxRecommendedAmount(
   pools: MarketPools,
   outcome: boolean,
-  maxSlippage: number = SLIPPAGE_THRESHOLDS.medium
-): number {
+  minROI: number = ROI_THRESHOLDS.reduced // -30%
+): number | null {
   const { poolYes, poolNo } = pools
   const totalLiquidity = poolYes + poolNo
 
-  // Começar com 1% da liquidez e ir aumentando
-  let low = 1
+  // Comecar com valor minimo e ir aumentando
+  let low = MIN_RECOMMENDED_AMOUNT
   let high = totalLiquidity * 2 // Maximo razoavel
-  let result = low
+  let result: number | null = null
 
-  // Busca binaria para encontrar o maior valor com slippage aceitavel
+  // Primeiro verificar se o minimo ja nao atende
+  const minPreview = previewBuy(pools, outcome, low)
+  if (minPreview.roi < minROI) {
+    // Mesmo o valor minimo nao atende - mercado muito desequilibrado
+    return null
+  }
+
+  // Busca binaria para encontrar o maior valor com ROI aceitavel
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const preview = previewBuy(pools, outcome, mid)
 
-    if (preview.slippage <= maxSlippage) {
+    if (preview.roi >= minROI) {
       result = mid
       low = mid + 1
     } else {
       high = mid - 1
     }
+  }
+
+  if (result === null || result < MIN_RECOMMENDED_AMOUNT) {
+    return null
   }
 
   // Arredondar para valor "bonito"
@@ -389,8 +414,65 @@ export function calculateMaxRecommendedAmount(
 }
 
 /**
- * Retorna mensagem de aviso baseada no nivel de slippage
+ * Calcula valores de quick amount baseados na liquidez do mercado
+ * Mais relevante que valores fixos como [10, 25, 50, 100]
  */
+export function calculateLiquidityBasedAmounts(
+  pools: MarketPools,
+  maxBalance: number = Infinity
+): number[] {
+  const totalLiquidity = pools.poolYes + pools.poolNo
+
+  // Percentuais da liquidez
+  const percentages = [0.01, 0.02, 0.05, 0.10] // 1%, 2%, 5%, 10%
+
+  return percentages
+    .map(pct => Math.round(totalLiquidity * pct))
+    .filter(value => value >= 10 && value <= maxBalance)
+    .slice(0, 4) // Maximo 4 valores
+}
+
+/**
+ * Retorna mensagem de aviso baseada no ROI (nao slippage)
+ * Mais relevante para usuarios de prediction markets
+ */
+export function getROIWarning(roi: number, otherSideROI?: number): {
+  title: string
+  message: string
+  severity: 'info' | 'warning' | 'error'
+  showOtherSide?: boolean
+} | null {
+  const level = getROILevel(roi)
+
+  switch (level) {
+    case 'excellent':
+    case 'good':
+      return null // Sem aviso - operacao boa
+    case 'reduced':
+      return {
+        title: 'Retorno reduzido',
+        message: 'O impacto no preco reduz seu retorno potencial.',
+        severity: 'info',
+        showOtherSide: otherSideROI !== undefined && otherSideROI > roi
+      }
+    case 'loss':
+      return {
+        title: 'Perda mesmo ganhando',
+        message: 'Este valor resulta em prejuizo mesmo se voce acertar a aposta.',
+        severity: 'warning',
+        showOtherSide: true
+      }
+    case 'severe_loss':
+      return {
+        title: 'Perda significativa',
+        message: 'Voce perdera a maior parte do investimento mesmo ganhando. Considere reduzir o valor.',
+        severity: 'error',
+        showOtherSide: true
+      }
+  }
+}
+
+// Manter funcao antiga para compatibilidade
 export function getSlippageWarning(slippageLevel: TradePreview['slippageLevel']): {
   title: string
   message: string
@@ -398,23 +480,23 @@ export function getSlippageWarning(slippageLevel: TradePreview['slippageLevel'])
 } | null {
   switch (slippageLevel) {
     case 'low':
-      return null // Sem aviso
+      return null
     case 'medium':
       return {
         title: 'Slippage moderado',
-        message: 'O valor é alto para a liquidez disponível. Você pagará um preço médio acima do mercado.',
+        message: 'O valor é alto para a liquidez disponível.',
         severity: 'info'
       }
     case 'high':
       return {
         title: 'Slippage alto',
-        message: 'Esta operação tem impacto significativo no preço. Considere reduzir o valor.',
+        message: 'Esta operação tem impacto significativo no preço.',
         severity: 'warning'
       }
     case 'extreme':
       return {
         title: 'Slippage muito alto',
-        message: 'O preço médio está muito acima do mercado. Recomendamos fortemente reduzir o valor.',
+        message: 'O preço médio está muito acima do mercado.',
         severity: 'error'
       }
   }
