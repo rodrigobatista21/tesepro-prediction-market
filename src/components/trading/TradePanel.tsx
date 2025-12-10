@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ChevronDown, ChevronUp, Info } from 'lucide-react'
 import { formatBRL } from '@/lib/utils/format'
 import { cn } from '@/lib/utils'
 import { useOrderBook, usePlaceOrder } from '@/lib/hooks/use-orderbook'
 import {
   calculateMultiplier,
-  calculateOrderCost,
   formatPrice
 } from '@/lib/utils/orderbook'
 import {
@@ -54,6 +53,25 @@ export function TradePanel({
 
   const currentPrices = outcome ? yesPrices : noPrices
   const bestAsk = currentPrices?.best_ask
+
+  // Calculate CPMM-based price as fallback when no order book liquidity
+  const cpmmPrice = outcome
+    ? poolYes / (poolYes + poolNo)
+    : poolNo / (poolYes + poolNo)
+
+  // Check if there's liquidity for market orders
+  const hasLiquidity = bestAsk !== null && bestAsk !== undefined
+
+  // Auto-switch to limit order and set suggested price when no liquidity
+  useEffect(() => {
+    if (!hasLiquidity && orderType === 'market' && !yesLoading && !noLoading) {
+      setOrderType('limit')
+      setShowAdvanced(true)
+      // Suggest a price slightly above CPMM price
+      const suggestedPrice = Math.min(cpmmPrice * 1.05, 0.99)
+      setPrice(suggestedPrice.toFixed(2))
+    }
+  }, [hasLiquidity, orderType, cpmmPrice, yesLoading, noLoading])
 
   // Calculate effective price and quantity
   const effectivePrice = orderType === 'market'
@@ -326,6 +344,19 @@ export function TradePanel({
               <div className="pt-2 border-t border-border/50 flex justify-between">
                 <span className="text-muted-foreground text-sm">Se ganhar</span>
                 <span className="font-bold text-lg">{formatBRL(preview.potentialReturn)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* No liquidity warning */}
+          {!hasLiquidity && !isLoading && (
+            <div className="flex items-start gap-2 text-amber-500 text-sm bg-amber-500/10 rounded-lg p-3">
+              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium">Sem liquidez para {outcomeName}</span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use uma ordem limite para definir seu preço. Sua ordem ficará no book aguardando execução.
+                </p>
               </div>
             </div>
           )}

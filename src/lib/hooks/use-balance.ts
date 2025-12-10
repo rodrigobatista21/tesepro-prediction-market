@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -15,9 +15,12 @@ export function useBalance(user: User | null): UseBalanceReturn {
   const [balance, setBalance] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const subscribed = useRef(false)
 
-  const supabase = createClient()
+  // Memoize supabase client to avoid recreating on every render
+  const supabase = useMemo(() => createClient(), [])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null)
 
   const fetchBalance = useCallback(async () => {
     if (!user) {
@@ -41,9 +44,9 @@ export function useBalance(user: User | null): UseBalanceReturn {
     } finally {
       setIsLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, [supabase, user])
 
+  // Initial fetch
   useEffect(() => {
     fetchBalance()
   }, [fetchBalance])
@@ -51,11 +54,14 @@ export function useBalance(user: User | null): UseBalanceReturn {
   // Realtime subscription para ledger_entries
   useEffect(() => {
     if (!user) return
-    if (subscribed.current) return
-    subscribed.current = true
+
+    // Clean up existing channel if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+    }
 
     const channel = supabase
-      .channel(`ledger:${user.id}`)
+      .channel(`ledger-balance-${user.id}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -69,14 +75,21 @@ export function useBalance(user: User | null): UseBalanceReturn {
           fetchBalance()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useBalance] Realtime subscribed for user:', user.id)
+        }
+      })
+
+    channelRef.current = channel
 
     return () => {
-      subscribed.current = false
-      supabase.removeChannel(channel)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, [supabase, user, fetchBalance])
 
   return {
     balance,
