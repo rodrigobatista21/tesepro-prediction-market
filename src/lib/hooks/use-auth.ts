@@ -173,10 +173,14 @@ export function useAuth(): UseAuthReturn {
   }, [supabase])
 
   const signInWithGoogle = useCallback(async () => {
+    // Use NEXT_PUBLIC_SITE_URL for production, fallback to window.location.origin
+    // This ensures OAuth redirects work correctly even if there's cached state from localhost
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${siteUrl}/auth/callback`,
       },
     })
     return { error: error as Error | null }
