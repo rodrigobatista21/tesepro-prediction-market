@@ -170,6 +170,7 @@ export function QuickTradeModal({
 
           {/* Amount Input */}
           <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Quanto você quer investir?</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
                 R$
@@ -185,7 +186,7 @@ export function QuickTradeModal({
             </div>
             {user && (
               <p className="text-xs text-muted-foreground">
-                Saldo: {formatBRL(balance || 0)}
+                Saldo disponível: {formatBRL(balance || 0)}
               </p>
             )}
           </div>
@@ -212,15 +213,23 @@ export function QuickTradeModal({
           {/* Preview */}
           {preview && (
             <div className={cn(
-              'rounded-lg p-3 space-y-1.5',
+              'rounded-lg p-3 space-y-2',
               outcome ? 'bg-emerald-500/10' : 'bg-rose-500/10'
             )}>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Contratos</span>
+                <span className="text-muted-foreground">Você paga</span>
+                <span className="font-medium">{formatBRL(preview.cost)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Preço por contrato</span>
+                <span className="font-medium">{formatPrice(preview.effectivePrice)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Contratos ({outcome ? 'SIM' : 'NÃO'})</span>
                 <span className="font-medium">{preview.shares.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Multiplicador</span>
+                <span className="text-muted-foreground">Retorno potencial</span>
                 <span className={cn(
                   'font-bold',
                   outcome ? 'text-emerald-500' : 'text-rose-500'
@@ -228,8 +237,8 @@ export function QuickTradeModal({
                   {preview.multiplier.toFixed(2)}x
                 </span>
               </div>
-              <div className="pt-2 border-t border-border/50 flex justify-between">
-                <span className="text-muted-foreground text-sm">Se ganhar</span>
+              <div className="pt-2 border-t border-border/50 flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Se {outcome ? 'SIM' : 'NÃO'} vencer</span>
                 <span className="font-bold text-lg">{formatBRL(preview.potentialReturn)}</span>
               </div>
             </div>
