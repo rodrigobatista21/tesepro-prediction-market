@@ -31,22 +31,29 @@ function LoginForm() {
   const [resetEmailSent, setResetEmailSent] = useState(false)
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [passwordUpdated, setPasswordUpdated] = useState(false)
+  const [processingCode, setProcessingCode] = useState(!!searchParams.get('code'))
 
   const supabase = createClient()
 
   // Detectar código de reset na URL
   useEffect(() => {
-    if (resetCode) {
+    const code = searchParams.get('code')
+    if (code) {
+      setProcessingCode(true)
       // Trocar código por sessão
-      supabase.auth.exchangeCodeForSession(resetCode).then(({ error }) => {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        console.log('exchangeCodeForSession result:', { data, error })
         if (error) {
+          console.error('Reset code error:', error)
           setError('Link de recuperação inválido ou expirado. Solicite um novo.')
+          setProcessingCode(false)
         } else {
           setShowResetPassword(true)
+          setProcessingCode(false)
         }
       })
     }
-  }, [resetCode, supabase.auth])
+  }, [searchParams, supabase.auth])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,6 +128,23 @@ function LoginForm() {
       setPasswordUpdated(true)
     }
     setIsLoading(false)
+  }
+
+  // Tela de loading enquanto processa código de reset
+  if (processingCode) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+            <h2 className="text-xl font-semibold">Processando...</h2>
+            <p className="text-muted-foreground">
+              Verificando link de recuperação de senha
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // Tela de senha atualizada com sucesso
