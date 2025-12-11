@@ -130,6 +130,7 @@ function LoginForm() {
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('handleUpdatePassword called')
 
     if (newPassword.length < 6) {
       setError('A senha deve ter pelo menos 6 caracteres')
@@ -143,15 +144,24 @@ function LoginForm() {
 
     setIsLoading(true)
     setError(null)
+    console.log('Calling updateUser...')
 
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword
-    })
+    try {
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+      console.log('updateUser result:', { data, error: updateError })
 
-    if (updateError) {
-      setError(updateError.message)
-    } else {
-      setPasswordUpdated(true)
+      if (updateError) {
+        console.error('Update password error:', updateError)
+        setError(updateError.message)
+      } else {
+        console.log('Password updated successfully!')
+        setPasswordUpdated(true)
+      }
+    } catch (err) {
+      console.error('Catch error:', err)
+      setError('Erro ao atualizar senha. Tente novamente.')
     }
     setIsLoading(false)
   }
