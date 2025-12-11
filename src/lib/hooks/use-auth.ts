@@ -13,6 +13,7 @@ interface UseAuthReturn {
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>
   signUpWithEmail: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>
   signInWithGoogle: () => Promise<{ error: Error | null }>
+  resetPassword: (email: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
 }
 
@@ -193,6 +194,17 @@ export function useAuth(): UseAuthReturn {
     return { error: error as Error | null }
   }, [supabase])
 
+  const resetPassword = useCallback(async (email: string) => {
+    const redirectUrl = typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+      ? 'https://tesepro.com.br/login'
+      : `${window.location.origin}/login`
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    })
+    return { error: error as Error | null }
+  }, [supabase])
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
   }, [supabase])
@@ -205,6 +217,7 @@ export function useAuth(): UseAuthReturn {
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
+    resetPassword,
     signOut,
   }
 }

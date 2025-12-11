@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { TrendingUp, Loader2, Mail } from 'lucide-react'
+import { TrendingUp, Loader2, Mail, ArrowLeft, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,12 +17,14 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/'
 
-  const { signInWithEmail, signInWithGoogle } = useAuth()
+  const { signInWithEmail, signInWithGoogle, resetPassword } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,6 +51,120 @@ function LoginForm() {
       setError(authError.message)
       setIsLoading(false)
     }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) {
+      setError('Digite seu email')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    const { error: resetError } = await resetPassword(email)
+
+    if (resetError) {
+      setError(resetError.message)
+    } else {
+      setResetEmailSent(true)
+    }
+    setIsLoading(false)
+  }
+
+  // Tela de confirmação de email enviado
+  if (resetEmailSent) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Email enviado!</h2>
+            <p className="text-muted-foreground">
+              Enviamos um link de recuperação para <strong>{email}</strong>.
+              Verifique sua caixa de entrada e spam.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetEmailSent(false)
+                setShowForgotPassword(false)
+              }}
+              className="mt-4"
+            >
+              Voltar ao login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Tela de esqueci minha senha
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="w-6 h-6 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Esqueci minha senha</CardTitle>
+            <CardDescription>
+              Digite seu email para receber um link de recuperação
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive text-center">{error}</p>
+              )}
+
+              <Button type="submit" className="w-full h-12" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Mail className="w-4 h-4 mr-2" />
+                )}
+                Enviar link de recuperação
+              </Button>
+            </form>
+          </CardContent>
+
+          <CardFooter>
+            <Button
+              variant="ghost"
+              className="w-full gap-2"
+              onClick={() => {
+                setShowForgotPassword(false)
+                setError(null)
+              }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar ao login
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -121,7 +237,16 @@ function LoginForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
