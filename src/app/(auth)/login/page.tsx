@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { TrendingUp, Loader2, Mail, ArrowLeft, Check } from 'lucide-react'
+import { TrendingUp, Loader2, Mail, ArrowLeft, Check, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,20 +11,42 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/lib/hooks'
+import { createClient } from '@/lib/supabase/client'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/'
+  const resetCode = searchParams.get('code')
 
   const { signInWithEmail, signInWithGoogle, resetPassword } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmailSent, setResetEmailSent] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [passwordUpdated, setPasswordUpdated] = useState(false)
+
+  const supabase = createClient()
+
+  // Detectar código de reset na URL
+  useEffect(() => {
+    if (resetCode) {
+      // Trocar código por sessão
+      supabase.auth.exchangeCodeForSession(resetCode).then(({ error }) => {
+        if (error) {
+          setError('Link de recuperação inválido ou expirado. Solicite um novo.')
+        } else {
+          setShowResetPassword(true)
+        }
+      })
+    }
+  }, [resetCode, supabase.auth])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +93,127 @@ function LoginForm() {
       setResetEmailSent(true)
     }
     setIsLoading(false)
+  }
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('As senhas não coincidem')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+
+    if (updateError) {
+      setError(updateError.message)
+    } else {
+      setPasswordUpdated(true)
+    }
+    setIsLoading(false)
+  }
+
+  // Tela de senha atualizada com sucesso
+  if (passwordUpdated) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Senha atualizada!</h2>
+            <p className="text-muted-foreground">
+              Sua senha foi alterada com sucesso. Você já pode fazer login.
+            </p>
+            <Button
+              onClick={() => {
+                setPasswordUpdated(false)
+                setShowResetPassword(false)
+                router.push('/login')
+              }}
+              className="mt-4"
+            >
+              Fazer login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Tela de definir nova senha
+  if (showResetPassword) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Definir nova senha</CardTitle>
+            <CardDescription>
+              Digite sua nova senha abaixo
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova senha</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirmar senha</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="Digite novamente"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive text-center">{error}</p>
+              )}
+
+              <Button type="submit" className="w-full h-12" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4 mr-2" />
+                )}
+                Atualizar senha
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // Tela de confirmação de email enviado
