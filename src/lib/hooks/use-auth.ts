@@ -125,15 +125,17 @@ export function useAuth(): UseAuthReturn {
     initAuth()
 
     // Listen for auth changes
+    // IMPORTANTE: callback NÃO pode ser async - causa deadlock com outras chamadas do Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         if (!mounted) return
 
         setSession(newSession)
         setUser(newSession?.user ?? null)
 
         if (newSession?.user) {
-          await fetchProfile(newSession.user.id)
+          // Não usar await aqui - pode causar deadlock
+          fetchProfile(newSession.user.id)
         } else {
           setProfile(null)
         }
