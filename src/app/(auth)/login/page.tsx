@@ -38,22 +38,44 @@ function LoginForm() {
   // Detectar código de reset na URL
   useEffect(() => {
     const code = searchParams.get('code')
-    if (code) {
+    if (code && !showResetPassword && !passwordUpdated) {
       setProcessingCode(true)
-      // Trocar código por sessão
-      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
-        console.log('exchangeCodeForSession result:', { data, error })
-        if (error) {
-          console.error('Reset code error:', error)
-          setError('Link de recuperação inválido ou expirado. Solicite um novo.')
+      console.log('Processing reset code:', code)
+
+      // Trocar código por sessão com timeout
+      const timeoutId = setTimeout(() => {
+        console.error('Timeout ao processar código')
+        setError('Tempo esgotado. Tente novamente.')
+        setProcessingCode(false)
+      }, 10000)
+
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ data, error }) => {
+          clearTimeout(timeoutId)
+          console.log('exchangeCodeForSession result:', { data, error })
+
+          if (error) {
+            console.error('Reset code error:', error.message, error)
+            setError(`Link inválido ou expirado: ${error.message}`)
+            setProcessingCode(false)
+          } else if (data?.session) {
+            console.log('Session created, showing reset form')
+            setShowResetPassword(true)
+            setProcessingCode(false)
+          } else {
+            console.error('No session returned')
+            setError('Erro ao processar link. Solicite um novo.')
+            setProcessingCode(false)
+          }
+        })
+        .catch((err) => {
+          clearTimeout(timeoutId)
+          console.error('Catch error:', err)
+          setError('Erro de conexão. Tente novamente.')
           setProcessingCode(false)
-        } else {
-          setShowResetPassword(true)
-          setProcessingCode(false)
-        }
-      })
+        })
     }
-  }, [searchParams, supabase.auth])
+  }, [searchParams, supabase.auth, showResetPassword, passwordUpdated])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
