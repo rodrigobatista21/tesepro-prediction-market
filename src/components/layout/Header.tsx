@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { TrendingUp, Wallet, Menu, LogOut, Plus, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -25,8 +26,17 @@ import { formatBRL } from '@/lib/utils/format'
 import { cn } from '@/lib/utils'
 
 export function Header() {
+  const pathname = usePathname()
   const { user, profile, signOut, isLoading: authLoading } = useAuth()
   const { balance, refetch } = useBalance(user)
+
+  // Helper to check if a path is active
+  const isActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/' || pathname?.startsWith('/mercado')
+    }
+    return pathname?.startsWith(href)
+  }
 
   const initials = profile?.full_name
     ?.split(' ')
@@ -52,12 +62,12 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-1">
-            <NavLink href="/" active>
+            <NavLink href="/" active={isActive('/')}>
               <BarChart3 className="w-4 h-4" />
               Mercados
             </NavLink>
             {user && (
-              <NavLink href="/minhas-apostas">
+              <NavLink href="/minhas-apostas" active={isActive('/minhas-apostas')}>
                 <TrendingUp className="w-4 h-4" />
                 Posições
               </NavLink>
@@ -173,17 +183,17 @@ export function Header() {
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-2 mt-6">
-                <MobileNavLink href="/">
+                <MobileNavLink href="/" active={isActive('/')}>
                   <BarChart3 className="w-5 h-5" />
                   Mercados
                 </MobileNavLink>
                 {user && (
                   <>
-                    <MobileNavLink href="/minhas-apostas">
+                    <MobileNavLink href="/minhas-apostas" active={isActive('/minhas-apostas')}>
                       <TrendingUp className="w-5 h-5" />
                       Minhas Posições
                     </MobileNavLink>
-                    <MobileNavLink href="/carteira">
+                    <MobileNavLink href="/carteira" active={isActive('/carteira')}>
                       <Wallet className="w-5 h-5" />
                       Carteira
                     </MobileNavLink>
@@ -222,11 +232,24 @@ function NavLink({
   )
 }
 
-function MobileNavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function MobileNavLink({
+  href,
+  children,
+  active = false
+}: {
+  href: string
+  children: React.ReactNode
+  active?: boolean
+}) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-3 py-3 rounded-lg text-base font-medium hover:bg-muted transition-smooth"
+      className={cn(
+        'flex items-center gap-3 px-3 py-3 rounded-lg text-base font-medium transition-smooth',
+        active
+          ? 'bg-muted text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      )}
     >
       {children}
     </Link>
