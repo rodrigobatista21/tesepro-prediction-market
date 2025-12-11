@@ -5,8 +5,6 @@ import Link from 'next/link'
 import {
   TrendingUp,
   BarChart3,
-  Flame,
-  Clock,
   Landmark,
   DollarSign,
   Cpu,
@@ -16,7 +14,8 @@ import {
   ChevronRight,
   Target,
   LineChart,
-  Zap
+  Zap,
+  Flame
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -47,28 +46,21 @@ const THEME_CATEGORIES = [
   { id: 'geopolitica', label: 'Geopolítica', icon: Globe },
 ] as const
 
-// Filtros especiais
-const SPECIAL_FILTERS = [
-  { id: 'trending', label: 'Em Alta', icon: Flame },
-  { id: 'ending', label: 'Encerrando', icon: Clock },
-] as const
-
-// Opções de ordenação
+// Opções de ordenação profissional
 const SORT_OPTIONS = [
   { id: 'volume', label: 'Maior Volume' },
   { id: 'return', label: 'Maior Retorno' },
   { id: 'probable', label: 'Mais Prováveis' },
+  { id: 'ending', label: 'Encerrando' },
   { id: 'recent', label: 'Recentes' },
 ] as const
 
 type ThemeCategoryId = typeof THEME_CATEGORIES[number]['id']
-type SpecialFilterId = typeof SPECIAL_FILTERS[number]['id'] | null
 type SortOptionId = typeof SORT_OPTIONS[number]['id']
 
 export default function HomePage() {
   const { markets, isLoading, error } = useMarkets()
   const [activeCategory, setActiveCategory] = useState<ThemeCategoryId>('all')
-  const [specialFilter, setSpecialFilter] = useState<SpecialFilterId>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOptionId>('volume')
   const [now, setNow] = useState(() => Date.now())
@@ -134,7 +126,7 @@ export default function HomePage() {
     setRecentTradesCount(Math.floor(Math.random() * 20) + 5)
   }, [])
 
-  // Filter and sort markets based on category, special filters, search query, and sort option
+  // Filter and sort markets based on category, search query, and sort option
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const filteredMarkets = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
@@ -152,18 +144,6 @@ export default function HomePage() {
       // Filtro por categoria temática
       if (activeCategory !== 'all' && market.category !== activeCategory) {
         return false
-      }
-
-      // Filtros especiais
-      if (specialFilter === 'trending' && market.total_liquidity <= 2000) {
-        return false
-      }
-      if (specialFilter === 'ending') {
-        const endsAt = new Date(market.ends_at).getTime()
-        const threeDays = 3 * 24 * 60 * 60 * 1000
-        if (endsAt - now >= threeDays) {
-          return false
-        }
       }
 
       return true
@@ -187,13 +167,17 @@ export default function HomePage() {
         // Maior probabilidade SIM primeiro
         sorted.sort((a, b) => b.odds_yes - a.odds_yes)
         break
+      case 'ending':
+        // Mais próximo de encerrar primeiro
+        sorted.sort((a, b) => new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime())
+        break
       case 'recent':
         sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         break
     }
 
     return sorted
-  }, [markets, searchQuery, activeCategory, specialFilter, now, sortBy])
+  }, [markets, searchQuery, activeCategory, sortBy])
 
   return (
     <div className="space-y-8">
@@ -346,44 +330,19 @@ export default function HomePage() {
               placeholder="Buscar teses..."
             />
 
-            {/* Special filters + Sort dropdown */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {SPECIAL_FILTERS.map((filter) => {
-                const Icon = filter.icon
-                const isActive = specialFilter === filter.id
-
-                return (
-                  <Button
-                    key={filter.id}
-                    variant={isActive ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpecialFilter(isActive ? null : filter.id)}
-                    className={cn(
-                      'gap-1.5 whitespace-nowrap flex-shrink-0',
-                      isActive && 'bg-emerald-500 hover:bg-emerald-600'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden xs:inline">{filter.label}</span>
-                    <span className="xs:hidden">{filter.id === 'trending' ? 'Hot' : 'Fim'}</span>
-                  </Button>
-                )
-              })}
-
-              {/* Sort dropdown */}
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOptionId)}>
-                <SelectTrigger className="h-9 w-[140px] sm:w-[160px] text-xs sm:text-sm">
-                  <SelectValue placeholder="Ordenar por" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Sort dropdown */}
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOptionId)}>
+              <SelectTrigger className="h-9 w-[160px] text-sm">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
